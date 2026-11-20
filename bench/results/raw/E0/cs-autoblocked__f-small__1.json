@@ -1,0 +1,46 @@
+{
+  "exp": "E0",
+  "arm": "cs-autoblocked",
+  "fixture": "f-small",
+  "rep": 1,
+  "wall_ms": 252019,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {},
+  "status": "ok",
+  "cost_usd": 1.2968014750000003,
+  "model_cost_usd": {
+    "claude-opus-5-5": 1.2613266000000003,
+    "claude-haiku-5-5": 0.03547487500000001
+  },
+  "tokens": {
+    "input": 8,
+    "output": 5030
+  },
+  "hidden": {
+    "passed": 10,
+    "failed": 0
+  },
+  "review_score": 8,
+  "review_reasons": [
+    "Matches the spec on every point: exact API names and signatures, trim then invariant lower-case, validation rules checked in the specified order (Empty \u2192 TooLong \u2192 InvalidCharacters \u2192 BadHyphen), ordinal first-seen dedupe of accepted tags, and rejected entries that keep the original raw string in input order.",
+    "Tests are thorough and well targeted: they cover the Turkish-culture invariant check, the 32/33-character length boundary, rule order (TooLong beats BadHyphen and InvalidCharacters, InvalidCharacters beats BadHyphen), non-ASCII 'caf\u00e9', duplicate invalid inputs, empty input and null arguments.",
+    "The code is clean and idiomatic modern C#: ArgumentNullException.ThrowIfNull, a property pattern `is { } error`, collection expressions in the tests, sealed records and XML docs. The logic is minimal and easy to read.",
+    "Minor: the PR commits the internal planning files (docs/plans/*.json and *.md). These are process artifacts that a reviewer would probably ask to drop.",
+    "Minor: a null element inside the Process input throws ArgumentNullException via Normalize. The spec doesn't cover this case, and the behaviour is neither documented nor tested. Validate(null) throwing is also extra behaviour beyond the spec."
+  ],
+  "judge_cost_usd": 0.1496826,
+  "session_id": "bd63c5d0-9810-4bbe-ab98-4c338f60d16e",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 0,
+  "stuck": null,
+  "fix_rounds": null,
+  "note": "workflow ran but workers were blocked (auto-mode classifier no verdict on Write; task branch nested under feature branch); Opus finished inline"
+}

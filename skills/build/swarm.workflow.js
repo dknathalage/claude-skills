@@ -20,7 +20,7 @@ const serial = mode.serial === true
 const MAX_FIX_ROUNDS = 2
 const WORKER = { model: 'haiku', effort: 'low' }
 const FEATURE = `build/${topic}`
-const branchOf = id => `${FEATURE}/${id}`
+const branchOf = id => `swarm/${topic}/${id}`  // never nested under FEATURE: git cannot hold build/x and build/x/T1
 
 const byId = new Map(graph.tasks.map(t => [t.id, t]))
 const order = waves.flat()

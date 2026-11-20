@@ -118,14 +118,21 @@ test('worktree_mode_uses_isolation', async () => {
   const { calls } = await runWorkflow(SCRIPT, argsFor([task('T1'), task('T2', ['T1'])]), happy());
   const impl2 = calls.find(c => kind(c.opts) === 'implement' && id(c.opts) === 'T2');
   assert.equal(impl2.opts.isolation, 'worktree');
-  assert.match(impl2.prompt, /build\/demo\/T2/);
-  assert.match(impl2.prompt, /git merge (--no-edit )?build\/demo\/T1/);
+  assert.match(impl2.prompt, /git checkout -b swarm\/demo\/T2/);
+  assert.match(impl2.prompt, /git merge (--no-edit )?swarm\/demo\/T1/);
 });
 
 test('integrate_lists_only_passed_tasks_in_order', async () => {
   const fake = happy({ check: async (p, o) => (id(o) === 'T2' ? { pass: false, problems: ['x'] } : undefined) });
   const { calls } = await runWorkflow(SCRIPT, argsFor([task('T1'), task('T2'), task('T3', ['T1'])]), fake);
   const integ = calls.find(c => kind(c.opts) === 'integrate');
-  assert.match(integ.prompt, /build\/demo\/T1[\s\S]*build\/demo\/T3/);
-  assert.doesNotMatch(integ.prompt, /build\/demo\/T2/);
+  assert.match(integ.prompt, /swarm\/demo\/T1[\s\S]*swarm\/demo\/T3/);
+  assert.doesNotMatch(integ.prompt, /swarm\/demo\/T2/);
+  assert.match(integ.prompt, /on build\/demo/);
+});
+
+test('task_branches_never_nest_under_feature_branch', async () => {
+  const { calls } = await runWorkflow(SCRIPT, argsFor([task('T1')]), happy());
+  const impl = calls.find(c => kind(c.opts) === 'implement');
+  assert.doesNotMatch(impl.prompt, /build\/demo\//);
 });

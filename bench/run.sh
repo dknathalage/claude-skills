@@ -10,11 +10,18 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+CLAUDE_BIN="${BENCH_CLAUDE:-$(ls -d "$HOME/Library/Application Support/Claude/claude-code"/*/*/claude.app/Contents/MacOS/claude 2>/dev/null | sort -V | tail -1)}"
+CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 FIXTURES="${BENCH_FIXTURES:-$ROOT/bench/fixtures}"
 WORKROOT="${BENCH_WORK:-$ROOT/bench/work}"
 RESULTS="${BENCH_RESULTS:-$ROOT/bench/results}"
 SUPERPOWERS_DIR="${SUPERPOWERS_DIR:-$HOME/.claude/plugins/cache/claude-plugins-official/superpowers/7.0.2}"
-PERMISSION_MODE="${BENCH_PERMISSION_MODE:-auto}"
+PERMISSION_MODE="${BENCH_PERMISSION_MODE:-acceptEdits}"
+# Same tool allowance for every arm. Auto mode's classifier gives no verdict inside
+# workflow workers (E0), so runs use acceptEdits plus an explicit Bash allowlist.
+ALLOWED_TOOLS=(Workflow "Bash(git *)" "Bash(dotnet *)" "Bash(node *)" "Bash(cd *)" "Bash(ls *)" "Bash(cat *)" "Bash(mkdir *)" "Bash(find *)" "Bash(grep *)" "Bash(head *)" "Bash(tail *)" "Bash(wc *)" "Bash(rm -rf .build*)")
+# Headless sessions have workflows off by default; every arm gets the same settings.
+RUN_SETTINGS="${BENCH_SETTINGS:-{\"enableWorkflows\":true,\"workflowSizeGuideline\":\"large\"}}"
 
 EXP= ARM= FIXTURE= REP= PLUGIN= BUDGET=15 PROMPT= ARGS_JSON='{}' MODEL=claude-opus-5-5
 while [ $# -gt 0 ]; do
@@ -55,29 +62,16 @@ DRIVER="${DRIVER//\{\{ARGS_JSON\}\}/$ARGS_JSON}"
 
 now_ms() { node -e 'console.log(Date.now())'; }
 START=$(now_ms)
-( cd "$REPO" && claude -p "$DRIVER" \
+( cd "$REPO" && "$CLAUDE_BIN" -p "$DRIVER" \
     --model "$MODEL" \
     --output-format stream-json --verbose \
     --plugin-dir "$PLUGIN_DIR" \
     --setting-sources project,local \
     --permission-mode "$PERMISSION_MODE" \
+    --allowedTools "${ALLOWED_TOOLS[@]}" \
+    --settings "$RUN_SETTINGS" \
     --max-budget-usd "$BUDGET" \
   > "$WORK/transcript.jsonl" 2> "$WORK/stderr.log" )
 END=$(now_ms)
 
-# Hidden tests, run on whatever the session left behind.
-if [ -d "$FIX/hidden-tests" ]; then
-  cp -R "$FIX/hidden-tests" "$REPO/hidden-tests"
-  ( cd "$REPO" && dotnet test hidden-tests > "$WORK/hidden.log" 2>&1 )
-fi
-
-# Blind review: the judge sees the spec and the diff, never the arm.
-git -C "$REPO" add -A >/dev/null 2>&1
-git -C "$REPO" diff "$BASE_SHA" --cached -- . ':(exclude)hidden-tests' > "$WORK/diff.patch" 2>/dev/null
-"$ROOT/bench/judge.sh" "$REPO/SPEC.md" "$WORK/diff.patch" > "$WORK/judge.json" 2>> "$WORK/stderr.log"
-
-BASE_ROW=$(node -e 'console.log(JSON.stringify({exp:process.argv[1],arm:process.argv[2],fixture:process.argv[3],rep:Number(process.argv[4]),wall_ms:Number(process.argv[5]),plugin:process.argv[6],session_model:process.argv[7],args:JSON.parse(process.argv[8])}))' \
-  "$EXP" "$ARM" "$FIXTURE" "$REP" "$((END - START))" "$PLUGIN" "$MODEL" "$ARGS_JSON")
-node "$ROOT/bench/lib/parse-run.mjs" "$WORK/transcript.jsonl" "$WORK/hidden.log" "$WORK/judge.json" "$FIX/meta.json" "$BASE_ROW" \
-  > "$RESULTS/raw/$EXP/$NAME.json"
-echo "$RESULTS/raw/$EXP/$NAME.json"
+"$ROOT/bench/post.sh" "$WORK" "$EXP" "$ARM" "$FIXTURE" "$REP" "$PLUGIN" "$MODEL" "$ARGS_JSON" "$((END - START))"

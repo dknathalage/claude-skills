@@ -1,0 +1,46 @@
+{
+  "exp": "E0",
+  "arm": "superpowers",
+  "fixture": "f-small",
+  "rep": 1,
+  "wall_ms": 301869,
+  "plugin": "superpowers",
+  "session_model": "claude-opus-5-5",
+  "args": {},
+  "status": "ok",
+  "cost_usd": 1.741779215,
+  "model_cost_usd": {
+    "claude-opus-5-5": 1.4586162000000003,
+    "claude-haiku-5-5": 0.025736614999999997,
+    "claude-sonnet-5-5": 0.25742639999999994
+  },
+  "tokens": {
+    "input": 44,
+    "output": 15243
+  },
+  "hidden": {
+    "passed": 10,
+    "failed": 0
+  },
+  "review_score": 9,
+  "review_reasons": [
+    "The public API matches the spec exactly: the names, signatures, namespace, the nullable TagError? return, the records, and ArgumentNullException for null input on both Normalize and Process.",
+    "Validation follows the spec. Rules run in order (Empty, TooLong, InvalidCharacters, BadHyphen), the character check is an explicit ASCII range so Unicode letters and digits are rejected, and the length limit uses TagsInfo.MaxLength rather than a hard-coded 32.",
+    "TagService does one pass with an ordinal HashSet to drop duplicates after normalisation, keeping first-seen order. Rejected entries keep the original raw string, are listed in input order, and both lists come back read-only.",
+    "Tests are strong. They cover length boundaries, rule precedence, non-ASCII input, edge hyphens, duplicates that differ only by case or whitespace, whitespace-only input keeping its raw text, duplicate invalid inputs each being rejected, and null sequences and null elements.",
+    "Minor issue: the diff includes an agent planning document (docs/superpowers/plans/...), which is process scaffolding and arguably shouldn't be in the PR. The Turkish test case also relies on a literal combining character, which is easy to break by accident when editing the file."
+  ],
+  "judge_cost_usd": 0.15532259999999998,
+  "session_id": "f8fac785-1596-4f0a-9a94-9052fc8f6c54",
+  "plugins_loaded": [
+    "superpowers",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 0,
+  "stuck": null,
+  "fix_rounds": null
+}

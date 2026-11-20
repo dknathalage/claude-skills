@@ -7,7 +7,7 @@ mkdir -p "$TMP/fixtures/f-test/repo" "$TMP/fixtures/f-test/hidden-tests"
 echo "spec" > "$TMP/fixtures/f-test/repo/SPEC.md"
 echo '{"hidden_total":8}' > "$TMP/fixtures/f-test/meta.json"
 export PATH="$ROOT/bench/test/stubs:$PATH"
-export BENCH_FIXTURES="$TMP/fixtures" BENCH_WORK="$TMP/work" BENCH_RESULTS="$TMP/results"
+export BENCH_CLAUDE=claude BENCH_FIXTURES="$TMP/fixtures" BENCH_WORK="$TMP/work" BENCH_RESULTS="$TMP/results"
 "$ROOT/bench/run.sh" --exp ET --arm claude-skills --fixture f-test --rep 1 --budget 1 >/dev/null
 ROW="$TMP/results/raw/ET/claude-skills__f-test__1.json"
 node -e '

@@ -1,0 +1,42 @@
+{
+  "exp": "E0",
+  "arm": "inline-opus",
+  "fixture": "f-small",
+  "rep": 1,
+  "wall_ms": 98902,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {},
+  "status": "ok",
+  "cost_usd": 0.8297867999999999,
+  "model_cost_usd": {
+    "claude-opus-5-5": 0.8297867999999999
+  },
+  "tokens": {
+    "input": 26,
+    "output": 9093
+  },
+  "hidden": {
+    "passed": 10,
+    "failed": 0
+  },
+  "review_score": 9,
+  "review_reasons": [
+    "The code matches the spec exactly. All public names, signatures, the enum member order and the record shapes are as required. Normalize trims and then lower-cases with the invariant culture, and both null cases throw ArgumentNullException.",
+    "The validator checks the rules in the spec's order (Empty, TooLong, InvalidCharacters, BadHyphen) and returns the first one that fails. It uses an explicit ASCII range check, so '\u00e9' and upper-case input are correctly rejected.",
+    "TagService removes duplicates with an ordinal HashSet, keeping first-seen order. It reports every invalid input, duplicates included, in input order with the original raw string, and returns the lists read-only.",
+    "The tests are thorough. They cover the boundaries (exactly 32 vs 33 characters), every error type, the cases where two rules fail and the earlier one must win, normalisation before dedupe, rejected duplicates and the null checks.",
+    "Minor nits: a null element inside rawTags throws from Normalize, and no test documents this. The tests that only check rejections never assert that Accepted is empty. The plan files under docs/plans are extra noise in a feature PR."
+  ],
+  "judge_cost_usd": 0.318364,
+  "session_id": "b2fcd832-5cb2-48d2-806a-4639d7c331bf",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy"
+  ],
+  "permission_denials": 0,
+  "stuck": null,
+  "fix_rounds": null,
+  "note": "claude-skills build fell back to inline Opus: Workflow tool absent (headless default enableWorkflows=false)"
+}

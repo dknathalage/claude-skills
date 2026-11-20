@@ -1,6 +1,6 @@
 # claude-skills
 
-Personal [Claude Code](https://claude.com/claude-code) skills, packaged as a single plugin (`claude-skills`).
+Personal [Claude Code](https://claude.com/claude-code) skills in one plugin, `claude-skills`. It replaces [superpowers](https://github.com/obra/superpowers). The discipline is the same (spec → plan → build → review), but the build phase runs **parallel Haiku workers in a Claude workflow**, not one strong-model agent per task in sequence.
 
 ## Install
 
@@ -9,27 +9,65 @@ Personal [Claude Code](https://claude.com/claude-code) skills, packaged as a sin
 /plugin install claude-skills@claude-skills
 ```
 
-The small `marketplace.json` is only there because `/plugin` installs through a marketplace. It points at this repo root (`"source": "./"`).
+Update with `/plugin marketplace update claude-skills`. The small `marketplace.json` exists only because `/plugin` installs through a marketplace; it points at this repo root.
 
-## Update
+**`build` needs workflows enabled.** The desktop app has them on. For the CLI, set `"enableWorkflows": true` in your Claude Code settings.
+
+## Skills
+
+| Skill | Use it when |
+|---|---|
+| `using-claude-skills` | Loaded at session start by a hook. Lists the skills and the rule to check them first. |
+| `spec` | A new feature or change isn't fully specified. A short conversation and 2–3 approaches lead to an approved design doc in `docs/specs/`. |
+| `plan` | An approved spec needs a task graph (`docs/plans/*.json`) where each task owns its files. |
+| `build` | A task graph is ready to run. It runs a Claude workflow: parallel Haiku workers, a Haiku check-and-fix loop per task, one integration step and a whole-branch review on the session model. Per-agent timeouts and a build deadline apply. |
+| `test-driven-development` | You are writing any feature or bugfix code. |
+| `systematic-debugging` | There is a bug, failing test or crash. Find the root cause before any fix. |
+| `verification-before-completion` | You are about to say done, fixed or passing. |
+| `code-review` | You are reviewing work outside a build, or acting on review feedback. |
+| `worktrees` | Work needs isolating in a git worktree. |
+| `finish-branch` | Tests pass and the branch needs merging, a PR, keeping or discarding. |
+| `writing-skills` | You are adding or changing a skill in this plugin. |
+
+All `SKILL.md` files together come to about 6,800 words, against about 22,000 for superpowers.
+
+## How `build` works
 
 ```
-/plugin marketplace update claude-skills
+plan.json ──validate──▶ waves ──▶ Workflow
+  ├─ T1: implement (Haiku) → check (Haiku) → up to 2 fix rounds
+  ├─ T2: implement (Haiku) → check (Haiku)            each task starts as soon
+  └─ T3 (needs T1): …                                  as its dependencies pass
+        ▼
+  integrate (Haiku): merge swarm/<topic>/<id> into build/<topic>, run verify_all
+        ▼
+  review (session model): whole branch against the spec, one summary back
 ```
+
+Workers edit only the files their task owns. A task that keeps failing, or runs past its time limit, comes back `stuck` for the session to re-plan. It is never retried on a bigger model.
+
+## Benchmarks
+
+Headless A/B runs against superpowers on .NET fixtures, scored by hidden tests and a blind judge. Details are in [`bench/results/`](bench/results/).
+
+Results on F-medium (8 tasks), median of 3 runs each:
+
+| Arm | Time | Cost | Hidden tests | Review |
+|---|---|---|---|---|
+| swarm | 401 s | $1.48 | 20/20 | 8 |
+| same tasks one at a time | 570 s | $1.50 | 20/20 | 8 |
+| superpowers | 695 s | $3.88 | 20/20 | 9 |
+
+Run one session with `bench/run.sh`, or the E1 set with `bench/e1.sh`. `npm test` runs the harness and workflow tests.
 
 ## Adding or changing a skill
 
-Skills live in `skills/<name>/SKILL.md`. After editing, bump `version` in `.claude-plugin/plugin.json` (Claude Code uses it to detect updates), commit, push, and run `/plugin marketplace update claude-skills`.
-
-## Layout
-
-```
-.claude-plugin/plugin.json        plugin manifest (version lives here)
-.claude-plugin/marketplace.json   one-entry pointer so /plugin can install it
-skills/<name>/SKILL.md            one directory per skill
-docs/specs/                       design docs
-```
+See the `writing-skills` skill. In short:
+1. Edit `skills/<name>/SKILL.md`.
+2. Bump `version` in `.claude-plugin/plugin.json`.
+3. Run `claude plugin validate .`.
+4. Commit, push, then run `/plugin marketplace update claude-skills`.
 
 ## License
 
-MIT
+MIT. Several skills are rewritten from superpowers by Jesse Vincent, also MIT; see [NOTICE](NOTICE).

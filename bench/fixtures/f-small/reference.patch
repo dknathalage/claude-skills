@@ -1,0 +1,67 @@
+diff --git a/src/Tags/TagNormalizer.cs b/src/Tags/TagNormalizer.cs
+new file mode 100644
+index 0000000..78d5d93
+--- /dev/null
++++ b/src/Tags/TagNormalizer.cs
+@@ -0,0 +1,10 @@
++namespace Tags;
++
++public static class TagNormalizer
++{
++    public static string Normalize(string raw)
++    {
++        ArgumentNullException.ThrowIfNull(raw);
++        return raw.Trim().ToLowerInvariant();
++    }
++}
+diff --git a/src/Tags/TagService.cs b/src/Tags/TagService.cs
+new file mode 100644
+index 0000000..b0f7485
+--- /dev/null
++++ b/src/Tags/TagService.cs
+@@ -0,0 +1,23 @@
++namespace Tags;
++
++public sealed record RejectedTag(string Raw, TagError Reason);
++
++public sealed record TagResult(IReadOnlyList<string> Accepted, IReadOnlyList<RejectedTag> Rejected);
++
++public sealed class TagService
++{
++    public TagResult Process(IEnumerable<string> rawTags)
++    {
++        ArgumentNullException.ThrowIfNull(rawTags);
++        var accepted = new List<string>();
++        var seen = new HashSet<string>();
++        var rejected = new List<RejectedTag>();
++        foreach (var raw in rawTags)
++        {
++            var tag = TagNormalizer.Normalize(raw);
++            if (TagValidator.Validate(tag) is { } error) rejected.Add(new RejectedTag(raw, error));
++            else if (seen.Add(tag)) accepted.Add(tag);
++        }
++        return new TagResult(accepted, rejected);
++    }
++}
+diff --git a/src/Tags/TagValidator.cs b/src/Tags/TagValidator.cs
+new file mode 100644
+index 0000000..d48e5b9
+--- /dev/null
++++ b/src/Tags/TagValidator.cs
+@@ -0,0 +1,16 @@
++namespace Tags;
++
++public enum TagError { Empty, TooLong, InvalidCharacters, BadHyphen }
++
++public static class TagValidator
++{
++    public static TagError? Validate(string normalized)
++    {
++        if (string.IsNullOrEmpty(normalized)) return TagError.Empty;
++        if (normalized.Length > TagsInfo.MaxLength) return TagError.TooLong;
++        foreach (var c in normalized)
++            if (!(c is >= 'a' and <= 'z' or >= '0' and <= '9' or '-')) return TagError.InvalidCharacters;
++        if (normalized[0] == '-' || normalized[^1] == '-') return TagError.BadHyphen;
++        return null;
++    }
++}

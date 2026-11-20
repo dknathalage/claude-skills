@@ -1,0 +1,250 @@
+diff --git a/src/Loans.Api/Books/BookHandlers.cs b/src/Loans.Api/Books/BookHandlers.cs
+new file mode 100644
+index 0000000..360d1f2
+--- /dev/null
++++ b/src/Loans.Api/Books/BookHandlers.cs
+@@ -0,0 +1,22 @@
++using Loans.Api.Data;
++using Microsoft.EntityFrameworkCore;
++
++namespace Loans.Api.Books;
++
++public sealed record CreateBookRequest(string Title, string Author);
++public sealed record BookResponse(int Id, string Title, string Author);
++
++public static class BookHandlers
++{
++    public static async Task<IResult> Create(CreateBookRequest req, LoansDbContext db)
++    {
++        if (string.IsNullOrWhiteSpace(req.Title) || string.IsNullOrWhiteSpace(req.Author)) return Results.BadRequest();
++        var book = new Book { Title = req.Title, Author = req.Author };
++        db.Books.Add(book);
++        await db.SaveChangesAsync();
++        return Results.Created($"/books/{book.Id}", new BookResponse(book.Id, book.Title, book.Author));
++    }
++
++    public static async Task<IResult> List(LoansDbContext db)
++        => Results.Ok(await db.Books.OrderBy(b => b.Id).Select(b => new BookResponse(b.Id, b.Title, b.Author)).ToListAsync());
++}
+diff --git a/src/Loans.Api/Data/Book.cs b/src/Loans.Api/Data/Book.cs
+new file mode 100644
+index 0000000..10c090a
+--- /dev/null
++++ b/src/Loans.Api/Data/Book.cs
+@@ -0,0 +1,8 @@
++namespace Loans.Api.Data;
++
++public class Book
++{
++    public int Id { get; set; }
++    public string Title { get; set; } = "";
++    public string Author { get; set; } = "";
++}
+diff --git a/src/Loans.Api/Data/Loan.cs b/src/Loans.Api/Data/Loan.cs
+new file mode 100644
+index 0000000..4f1c58e
+--- /dev/null
++++ b/src/Loans.Api/Data/Loan.cs
+@@ -0,0 +1,19 @@
++namespace Loans.Api.Data;
++
++public class Loan
++{
++    public int Id { get; set; }
++    public int BookId { get; set; }
++    public int MemberId { get; set; }
++    public DateTime BorrowedOn { get; set; }
++    public DateTime DueOn { get; set; }
++    public DateTime? ReturnedOn { get; set; }
++    public decimal? Fee { get; set; }
++}
++
++public sealed record LoanResponse(int Id, int BookId, int MemberId, DateTime BorrowedOn, DateTime DueOn, DateTime? ReturnedOn, decimal? Fee);
++
++public static class LoanMappings
++{
++    public static LoanResponse ToResponse(this Loan l) => new(l.Id, l.BookId, l.MemberId, l.BorrowedOn, l.DueOn, l.ReturnedOn, l.Fee);
++}
+diff --git a/src/Loans.Api/Data/LoansDbContext.cs b/src/Loans.Api/Data/LoansDbContext.cs
+new file mode 100644
+index 0000000..272be86
+--- /dev/null
++++ b/src/Loans.Api/Data/LoansDbContext.cs
+@@ -0,0 +1,10 @@
++using Microsoft.EntityFrameworkCore;
++
++namespace Loans.Api.Data;
++
++public class LoansDbContext(DbContextOptions<LoansDbContext> options) : DbContext(options)
++{
++    public DbSet<Book> Books => Set<Book>();
++    public DbSet<Member> Members => Set<Member>();
++    public DbSet<Loan> Loans => Set<Loan>();
++}
+diff --git a/src/Loans.Api/Data/Member.cs b/src/Loans.Api/Data/Member.cs
+new file mode 100644
+index 0000000..f26ce84
+--- /dev/null
++++ b/src/Loans.Api/Data/Member.cs
+@@ -0,0 +1,7 @@
++namespace Loans.Api.Data;
++
++public class Member
++{
++    public int Id { get; set; }
++    public string Name { get; set; } = "";
++}
+diff --git a/src/Loans.Api/Loans/BorrowHandler.cs b/src/Loans.Api/Loans/BorrowHandler.cs
+new file mode 100644
+index 0000000..22c5d8d
+--- /dev/null
++++ b/src/Loans.Api/Loans/BorrowHandler.cs
+@@ -0,0 +1,25 @@
++using Loans.Api.Data;
++using Microsoft.EntityFrameworkCore;
++
++namespace Loans.Api.Loans;
++
++public sealed record BorrowRequest(int BookId, int MemberId);
++
++public static class BorrowHandler
++{
++    public const int LoanDays = 14;
++    public const int MaxActiveLoans = 3;
++
++    public static async Task<IResult> Borrow(BorrowRequest req, LoansDbContext db, TimeProvider time)
++    {
++        if (!await db.Books.AnyAsync(b => b.Id == req.BookId) || !await db.Members.AnyAsync(m => m.Id == req.MemberId))
++            return Results.NotFound();
++        if (await db.Loans.AnyAsync(l => l.BookId == req.BookId && l.ReturnedOn == null)) return Results.Conflict();
++        if (await db.Loans.CountAsync(l => l.MemberId == req.MemberId && l.ReturnedOn == null) >= MaxActiveLoans) return Results.Conflict();
++        var now = time.GetUtcNow().UtcDateTime;
++        var loan = new Loan { BookId = req.BookId, MemberId = req.MemberId, BorrowedOn = now, DueOn = now.AddDays(LoanDays) };
++        db.Loans.Add(loan);
++        await db.SaveChangesAsync();
++        return Results.Created($"/loans/{loan.Id}", loan.ToResponse());
++    }
++}
+diff --git a/src/Loans.Api/Loans/FeeCalculator.cs b/src/Loans.Api/Loans/FeeCalculator.cs
+new file mode 100644
+index 0000000..0bc1649
+--- /dev/null
++++ b/src/Loans.Api/Loans/FeeCalculator.cs
+@@ -0,0 +1,13 @@
++namespace Loans.Api.Loans;
++
++public static class FeeCalculator
++{
++    public const decimal PerDay = 0.50m;
++    public const decimal Cap = 10.00m;
++
++    public static decimal LateFee(DateTime dueOn, DateTime returnedOn)
++    {
++        var days = (int)Math.Floor((returnedOn - dueOn).TotalDays);
++        return days <= 0 ? 0m : Math.Min(days * PerDay, Cap);
++    }
++}
+diff --git a/src/Loans.Api/Loans/OverdueHandler.cs b/src/Loans.Api/Loans/OverdueHandler.cs
+new file mode 100644
+index 0000000..ee8942d
+--- /dev/null
++++ b/src/Loans.Api/Loans/OverdueHandler.cs
+@@ -0,0 +1,14 @@
++using Loans.Api.Data;
++using Microsoft.EntityFrameworkCore;
++
++namespace Loans.Api.Loans;
++
++public static class OverdueHandler
++{
++    public static async Task<IResult> List(LoansDbContext db, TimeProvider time)
++    {
++        var now = time.GetUtcNow().UtcDateTime;
++        var loans = await db.Loans.Where(l => l.ReturnedOn == null && l.DueOn < now).OrderBy(l => l.DueOn).ToListAsync();
++        return Results.Ok(loans.Select(l => l.ToResponse()).ToList());
++    }
++}
+diff --git a/src/Loans.Api/Loans/ReturnHandler.cs b/src/Loans.Api/Loans/ReturnHandler.cs
+new file mode 100644
+index 0000000..9e41cb1
+--- /dev/null
++++ b/src/Loans.Api/Loans/ReturnHandler.cs
+@@ -0,0 +1,18 @@
++using Loans.Api.Data;
++
++namespace Loans.Api.Loans;
++
++public static class ReturnHandler
++{
++    public static async Task<IResult> Return(int id, LoansDbContext db, TimeProvider time)
++    {
++        var loan = await db.Loans.FindAsync(id);
++        if (loan is null) return Results.NotFound();
++        if (loan.ReturnedOn is not null) return Results.Conflict();
++        var now = time.GetUtcNow().UtcDateTime;
++        loan.ReturnedOn = now;
++        loan.Fee = FeeCalculator.LateFee(loan.DueOn, now);
++        await db.SaveChangesAsync();
++        return Results.Ok(loan.ToResponse());
++    }
++}
+diff --git a/src/Loans.Api/Members/MemberHandlers.cs b/src/Loans.Api/Members/MemberHandlers.cs
+new file mode 100644
+index 0000000..68deb01
+--- /dev/null
++++ b/src/Loans.Api/Members/MemberHandlers.cs
+@@ -0,0 +1,22 @@
++using Loans.Api.Data;
++using Microsoft.EntityFrameworkCore;
++
++namespace Loans.Api.Members;
++
++public sealed record CreateMemberRequest(string Name);
++public sealed record MemberResponse(int Id, string Name);
++
++public static class MemberHandlers
++{
++    public static async Task<IResult> Create(CreateMemberRequest req, LoansDbContext db)
++    {
++        if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest();
++        var m = new Member { Name = req.Name };
++        db.Members.Add(m);
++        await db.SaveChangesAsync();
++        return Results.Created($"/members/{m.Id}", new MemberResponse(m.Id, m.Name));
++    }
++
++    public static async Task<IResult> List(LoansDbContext db)
++        => Results.Ok(await db.Members.OrderBy(m => m.Id).Select(m => new MemberResponse(m.Id, m.Name)).ToListAsync());
++}
+diff --git a/src/Loans.Api/Program.cs b/src/Loans.Api/Program.cs
+index 875f6d5..10fd447 100644
+--- a/src/Loans.Api/Program.cs
++++ b/src/Loans.Api/Program.cs
+@@ -1,9 +1,27 @@
++using Loans.Api.Books;
++using Loans.Api.Data;
++using Loans.Api.Loans;
++using Loans.Api.Members;
++using Microsoft.EntityFrameworkCore;
++
+ var builder = WebApplication.CreateBuilder(args);
+ builder.Services.AddSingleton(TimeProvider.System);
++builder.Services.AddDbContext<LoansDbContext>(o =>
++    o.UseSqlite(builder.Configuration.GetConnectionString("Loans") ?? "Data Source=loans.db"));
+ 
+ var app = builder.Build();
+ 
++using (var scope = app.Services.CreateScope())
++    scope.ServiceProvider.GetRequiredService<LoansDbContext>().Database.EnsureCreated();
++
+ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
++app.MapPost("/books", BookHandlers.Create);
++app.MapGet("/books", BookHandlers.List);
++app.MapPost("/members", MemberHandlers.Create);
++app.MapGet("/members", MemberHandlers.List);
++app.MapPost("/loans", BorrowHandler.Borrow);
++app.MapPost("/loans/{id:int}/return", ReturnHandler.Return);
++app.MapGet("/loans/overdue", OverdueHandler.List);
+ 
+ app.Run();
+ 

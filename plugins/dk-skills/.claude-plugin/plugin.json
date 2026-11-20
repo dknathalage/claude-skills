@@ -1,0 +1,11 @@
+{
+  "name": "dk-skills",
+  "version": "0.1.0",
+  "description": "Personal Claude Code skills bundle.",
+  "author": {
+    "name": "Dinuka Nathalage"
+  },
+  "homepage": "https://github.com/dknathalage/claude-skills",
+  "license": "MIT",
+  "skills": "./skills/"
+}

@@ -1,0 +1,796 @@
+diff --git a/src/Orders.Api/Catalog/CategoryHandlers.cs b/src/Orders.Api/Catalog/CategoryHandlers.cs
+new file mode 100644
+index 0000000..000f827
+--- /dev/null
++++ b/src/Orders.Api/Catalog/CategoryHandlers.cs
+@@ -0,0 +1,25 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Catalog;
++
++public sealed record CreateCategoryRequest(string Name);
++
++public static class CategoryHandlers
++{
++    public static async Task<IResult> Create(CreateCategoryRequest req, OrdersDbContext db)
++    {
++        if (string.IsNullOrWhiteSpace(req.Name)) return Results.BadRequest();
++        if (await db.Categories.AnyAsync(c => c.Name == req.Name)) return Results.Conflict();
++        var category = new Category { Name = req.Name };
++        db.Categories.Add(category);
++        await db.SaveChangesAsync();
++        return Results.Created($"/categories/{category.Id}", category.ToResponse());
++    }
++
++    public static async Task<IResult> List(OrdersDbContext db)
++    {
++        var list = (await db.Categories.ToListAsync()).OrderBy(c => c.Name, StringComparer.Ordinal).Select(c => c.ToResponse()).ToList();
++        return Results.Ok(list);
++    }
++}
+diff --git a/src/Orders.Api/Catalog/CreateProductHandler.cs b/src/Orders.Api/Catalog/CreateProductHandler.cs
+new file mode 100644
+index 0000000..17dcf6f
+--- /dev/null
++++ b/src/Orders.Api/Catalog/CreateProductHandler.cs
+@@ -0,0 +1,20 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Catalog;
++
++public sealed record CreateProductRequest(string Sku, string Name, decimal Price, int? CategoryId);
++
++public static class CreateProductHandler
++{
++    public static async Task<IResult> Create(CreateProductRequest req, OrdersDbContext db)
++    {
++        if (string.IsNullOrWhiteSpace(req.Sku) || string.IsNullOrWhiteSpace(req.Name) || req.Price <= 0) return Results.BadRequest();
++        if (req.CategoryId is int categoryId && !await db.Categories.AnyAsync(c => c.Id == categoryId)) return Results.BadRequest();
++        if (await db.Products.AnyAsync(p => p.Sku == req.Sku)) return Results.Conflict();
++        var product = new Product { Sku = req.Sku, Name = req.Name, Price = req.Price, CategoryId = req.CategoryId };
++        db.Products.Add(product);
++        await db.SaveChangesAsync();
++        return Results.Created($"/products/{product.Id}", product.ToResponse());
++    }
++}
+diff --git a/src/Orders.Api/Catalog/ProductQueries.cs b/src/Orders.Api/Catalog/ProductQueries.cs
+new file mode 100644
+index 0000000..9eb078b
+--- /dev/null
++++ b/src/Orders.Api/Catalog/ProductQueries.cs
+@@ -0,0 +1,21 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Catalog;
++
++public static class ProductQueries
++{
++    public static async Task<IResult> Get(int id, OrdersDbContext db)
++    {
++        var product = await db.Products.FindAsync(id);
++        return product is null ? Results.NotFound() : Results.Ok(product.ToResponse());
++    }
++
++    public static async Task<IResult> List(int? categoryId, OrdersDbContext db)
++    {
++        var query = db.Products.AsQueryable();
++        if (categoryId is int id) query = query.Where(p => p.CategoryId == id);
++        var list = (await query.OrderBy(p => p.Id).ToListAsync()).Select(p => p.ToResponse()).ToList();
++        return Results.Ok(list);
++    }
++}
+diff --git a/src/Orders.Api/Customers/CustomerHandlers.cs b/src/Orders.Api/Customers/CustomerHandlers.cs
+new file mode 100644
+index 0000000..60238c2
+--- /dev/null
++++ b/src/Orders.Api/Customers/CustomerHandlers.cs
+@@ -0,0 +1,29 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Customers;
++
++public sealed record CreateCustomerRequest(string Name, string Email);
++
++public static class CustomerHandlers
++{
++    public static async Task<IResult> Create(CreateCustomerRequest req, OrdersDbContext db)
++    {
++        if (string.IsNullOrWhiteSpace(req.Name) || req.Email is null || !req.Email.Contains('@')) return Results.BadRequest();
++        var email = req.Email.Trim().ToLowerInvariant();
++        if (await db.Customers.AnyAsync(c => c.Email == email)) return Results.Conflict();
++        var customer = new Customer { Name = req.Name, Email = email };
++        db.Customers.Add(customer);
++        await db.SaveChangesAsync();
++        return Results.Created($"/customers/{customer.Id}", customer.ToResponse());
++    }
++
++    public static async Task<IResult> Get(int id, OrdersDbContext db)
++    {
++        var customer = await db.Customers.FindAsync(id);
++        return customer is null ? Results.NotFound() : Results.Ok(customer.ToResponse());
++    }
++
++    public static async Task<IResult> List(OrdersDbContext db)
++        => Results.Ok((await db.Customers.OrderBy(c => c.Id).ToListAsync()).Select(c => c.ToResponse()).ToList());
++}
+diff --git a/src/Orders.Api/Data/Category.cs b/src/Orders.Api/Data/Category.cs
+new file mode 100644
+index 0000000..e58cf11
+--- /dev/null
++++ b/src/Orders.Api/Data/Category.cs
+@@ -0,0 +1,9 @@
++namespace Orders.Api.Data;
++
++public class Category
++{
++    public int Id { get; set; }
++    public string Name { get; set; } = "";
++}
++
++public sealed record CategoryResponse(int Id, string Name);
+diff --git a/src/Orders.Api/Data/Customer.cs b/src/Orders.Api/Data/Customer.cs
+new file mode 100644
+index 0000000..3de2202
+--- /dev/null
++++ b/src/Orders.Api/Data/Customer.cs
+@@ -0,0 +1,10 @@
++namespace Orders.Api.Data;
++
++public class Customer
++{
++    public int Id { get; set; }
++    public string Name { get; set; } = "";
++    public string Email { get; set; } = "";
++}
++
++public sealed record CustomerResponse(int Id, string Name, string Email);
+diff --git a/src/Orders.Api/Data/Invoice.cs b/src/Orders.Api/Data/Invoice.cs
+new file mode 100644
+index 0000000..449a442
+--- /dev/null
++++ b/src/Orders.Api/Data/Invoice.cs
+@@ -0,0 +1,12 @@
++namespace Orders.Api.Data;
++
++public class Invoice
++{
++    public int Id { get; set; }
++    public int OrderId { get; set; }
++    public string Number { get; set; } = "";
++    public DateTime IssuedOn { get; set; }
++    public decimal Amount { get; set; }
++}
++
++public sealed record InvoiceResponse(int Id, string Number, int OrderId, DateTime IssuedOn, decimal Amount);
+diff --git a/src/Orders.Api/Data/Mappings.cs b/src/Orders.Api/Data/Mappings.cs
+new file mode 100644
+index 0000000..70f8918
+--- /dev/null
++++ b/src/Orders.Api/Data/Mappings.cs
+@@ -0,0 +1,19 @@
++namespace Orders.Api.Data;
++
++public static class Mappings
++{
++    public static CategoryResponse ToResponse(this Category c) => new(c.Id, c.Name);
++
++    public static ProductResponse ToResponse(this Product p) => new(p.Id, p.Sku, p.Name, p.Price, p.CategoryId);
++
++    public static CustomerResponse ToResponse(this Customer c) => new(c.Id, c.Name, c.Email);
++
++    public static StockResponse ToResponse(this StockItem s) => new(s.ProductId, s.Quantity);
++
++    public static OrderResponse ToResponse(this Order o) => new(
++        o.Id, o.CustomerId, o.Status.ToString(), o.CreatedOn, o.PaidOn, o.ShippedOn, o.CancelledOn,
++        o.Subtotal, o.Discount, o.Tax, o.Total,
++        o.Lines.OrderBy(l => l.Id).Select(l => new OrderLineResponse(l.Id, l.ProductId, l.Quantity, l.UnitPrice, l.LineTotal)).ToList());
++
++    public static InvoiceResponse ToResponse(this Invoice i) => new(i.Id, i.Number, i.OrderId, i.IssuedOn, i.Amount);
++}
+diff --git a/src/Orders.Api/Data/Order.cs b/src/Orders.Api/Data/Order.cs
+new file mode 100644
+index 0000000..a41a539
+--- /dev/null
++++ b/src/Orders.Api/Data/Order.cs
+@@ -0,0 +1,34 @@
++namespace Orders.Api.Data;
++
++public enum OrderStatus { Pending, Paid, Shipped, Cancelled }
++
++public class Order
++{
++    public int Id { get; set; }
++    public int CustomerId { get; set; }
++    public OrderStatus Status { get; set; }
++    public DateTime CreatedOn { get; set; }
++    public DateTime? PaidOn { get; set; }
++    public DateTime? ShippedOn { get; set; }
++    public DateTime? CancelledOn { get; set; }
++    public decimal Subtotal { get; set; }
++    public decimal Discount { get; set; }
++    public decimal Tax { get; set; }
++    public decimal Total { get; set; }
++    public List<OrderLine> Lines { get; set; } = new();
++}
++
++public class OrderLine
++{
++    public int Id { get; set; }
++    public int OrderId { get; set; }
++    public int ProductId { get; set; }
++    public int Quantity { get; set; }
++    public decimal UnitPrice { get; set; }
++    public decimal LineTotal { get; set; }
++}
++
++public sealed record OrderLineResponse(int Id, int ProductId, int Quantity, decimal UnitPrice, decimal LineTotal);
++
++public sealed record OrderResponse(int Id, int CustomerId, string Status, DateTime CreatedOn, DateTime? PaidOn, DateTime? ShippedOn,
++    DateTime? CancelledOn, decimal Subtotal, decimal Discount, decimal Tax, decimal Total, List<OrderLineResponse> Lines);
+diff --git a/src/Orders.Api/Data/OrdersDbContext.cs b/src/Orders.Api/Data/OrdersDbContext.cs
+new file mode 100644
+index 0000000..c2ee65e
+--- /dev/null
++++ b/src/Orders.Api/Data/OrdersDbContext.cs
+@@ -0,0 +1,20 @@
++using Microsoft.EntityFrameworkCore;
++
++namespace Orders.Api.Data;
++
++public class OrdersDbContext(DbContextOptions<OrdersDbContext> options) : DbContext(options)
++{
++    public DbSet<Category> Categories => Set<Category>();
++    public DbSet<Product> Products => Set<Product>();
++    public DbSet<Customer> Customers => Set<Customer>();
++    public DbSet<StockItem> Stock => Set<StockItem>();
++    public DbSet<Order> Orders => Set<Order>();
++    public DbSet<OrderLine> OrderLines => Set<OrderLine>();
++    public DbSet<Invoice> Invoices => Set<Invoice>();
++
++    protected override void OnModelCreating(ModelBuilder b)
++    {
++        b.Entity<StockItem>().HasKey(s => s.ProductId);
++        b.Entity<StockItem>().Property(s => s.ProductId).ValueGeneratedNever();
++    }
++}
+diff --git a/src/Orders.Api/Data/Product.cs b/src/Orders.Api/Data/Product.cs
+new file mode 100644
+index 0000000..5defd82
+--- /dev/null
++++ b/src/Orders.Api/Data/Product.cs
+@@ -0,0 +1,12 @@
++namespace Orders.Api.Data;
++
++public class Product
++{
++    public int Id { get; set; }
++    public string Sku { get; set; } = "";
++    public string Name { get; set; } = "";
++    public decimal Price { get; set; }
++    public int? CategoryId { get; set; }
++}
++
++public sealed record ProductResponse(int Id, string Sku, string Name, decimal Price, int? CategoryId);
+diff --git a/src/Orders.Api/Data/StockItem.cs b/src/Orders.Api/Data/StockItem.cs
+new file mode 100644
+index 0000000..63d607e
+--- /dev/null
++++ b/src/Orders.Api/Data/StockItem.cs
+@@ -0,0 +1,9 @@
++namespace Orders.Api.Data;
++
++public class StockItem
++{
++    public int ProductId { get; set; }
++    public int Quantity { get; set; }
++}
++
++public sealed record StockResponse(int ProductId, int Quantity);
+diff --git a/src/Orders.Api/Inventory/LowStockHandler.cs b/src/Orders.Api/Inventory/LowStockHandler.cs
+new file mode 100644
+index 0000000..3caa3d6
+--- /dev/null
++++ b/src/Orders.Api/Inventory/LowStockHandler.cs
+@@ -0,0 +1,23 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Inventory;
++
++public static class LowStockHandler
++{
++    public const int DefaultThreshold = 5;
++
++    public static async Task<IResult> List(int? threshold, OrdersDbContext db)
++    {
++        var limit = threshold ?? DefaultThreshold;
++        if (limit < 1) return Results.BadRequest();
++        var productIds = await db.Products.Select(p => p.Id).ToListAsync();
++        var stock = await db.Stock.ToDictionaryAsync(s => s.ProductId, s => s.Quantity);
++        var list = productIds
++            .Select(id => new StockResponse(id, stock.GetValueOrDefault(id)))
++            .Where(s => s.Quantity < limit)
++            .OrderBy(s => s.Quantity).ThenBy(s => s.ProductId)
++            .ToList();
++        return Results.Ok(list);
++    }
++}
+diff --git a/src/Orders.Api/Inventory/StockHandlers.cs b/src/Orders.Api/Inventory/StockHandlers.cs
+new file mode 100644
+index 0000000..c3b76c1
+--- /dev/null
++++ b/src/Orders.Api/Inventory/StockHandlers.cs
+@@ -0,0 +1,33 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Inventory;
++
++public sealed record AdjustStockRequest(int Delta);
++
++public static class StockHandlers
++{
++    public static async Task<IResult> Get(int productId, OrdersDbContext db)
++    {
++        if (!await db.Products.AnyAsync(p => p.Id == productId)) return Results.NotFound();
++        var stock = await db.Stock.FindAsync(productId);
++        return Results.Ok(new StockResponse(productId, stock?.Quantity ?? 0));
++    }
++
++    public static async Task<IResult> Adjust(int productId, AdjustStockRequest req, OrdersDbContext db)
++    {
++        if (!await db.Products.AnyAsync(p => p.Id == productId)) return Results.NotFound();
++        if (req.Delta == 0) return Results.BadRequest();
++        var stock = await db.Stock.FindAsync(productId);
++        var next = (stock?.Quantity ?? 0) + req.Delta;
++        if (next < 0) return Results.Conflict();
++        if (stock is null)
++        {
++            stock = new StockItem { ProductId = productId };
++            db.Stock.Add(stock);
++        }
++        stock.Quantity = next;
++        await db.SaveChangesAsync();
++        return Results.Ok(stock.ToResponse());
++    }
++}
+diff --git a/src/Orders.Api/Invoices/InvoiceNumber.cs b/src/Orders.Api/Invoices/InvoiceNumber.cs
+new file mode 100644
+index 0000000..2c78d99
+--- /dev/null
++++ b/src/Orders.Api/Invoices/InvoiceNumber.cs
+@@ -0,0 +1,10 @@
++namespace Orders.Api.Invoices;
++
++public static class InvoiceNumber
++{
++    public static string Format(int sequence)
++    {
++        if (sequence < 1 || sequence > 999999) throw new ArgumentOutOfRangeException(nameof(sequence));
++        return $"INV-{sequence:D6}";
++    }
++}
+diff --git a/src/Orders.Api/Invoices/InvoiceQueries.cs b/src/Orders.Api/Invoices/InvoiceQueries.cs
+new file mode 100644
+index 0000000..e0341ef
+--- /dev/null
++++ b/src/Orders.Api/Invoices/InvoiceQueries.cs
+@@ -0,0 +1,19 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Invoices;
++
++public static class InvoiceQueries
++{
++    public static async Task<IResult> ByNumber(string number, OrdersDbContext db)
++    {
++        var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.Number == number);
++        return invoice is null ? Results.NotFound() : Results.Ok(invoice.ToResponse());
++    }
++
++    public static async Task<IResult> ForOrder(int id, OrdersDbContext db)
++    {
++        var invoice = await db.Invoices.FirstOrDefaultAsync(i => i.OrderId == id);
++        return invoice is null ? Results.NotFound() : Results.Ok(invoice.ToResponse());
++    }
++}
+diff --git a/src/Orders.Api/Ordering/CancelOrderHandler.cs b/src/Orders.Api/Ordering/CancelOrderHandler.cs
+new file mode 100644
+index 0000000..46c57ba
+--- /dev/null
++++ b/src/Orders.Api/Ordering/CancelOrderHandler.cs
+@@ -0,0 +1,28 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Ordering;
++
++public static class CancelOrderHandler
++{
++    public static async Task<IResult> Cancel(int id, OrdersDbContext db, TimeProvider time)
++    {
++        var order = await db.Orders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.Id == id);
++        if (order is null) return Results.NotFound();
++        if (!OrderStatusRules.CanTransition(order.Status, OrderStatus.Cancelled)) return Results.Conflict();
++        foreach (var line in order.Lines)
++        {
++            var stock = await db.Stock.FindAsync(line.ProductId);
++            if (stock is null)
++            {
++                stock = new StockItem { ProductId = line.ProductId };
++                db.Stock.Add(stock);
++            }
++            stock.Quantity += line.Quantity;
++        }
++        order.Status = OrderStatus.Cancelled;
++        order.CancelledOn = time.GetUtcNow().UtcDateTime;
++        await db.SaveChangesAsync();
++        return Results.Ok(order.ToResponse());
++    }
++}
+diff --git a/src/Orders.Api/Ordering/OrderQueries.cs b/src/Orders.Api/Ordering/OrderQueries.cs
+new file mode 100644
+index 0000000..6e5676d
+--- /dev/null
++++ b/src/Orders.Api/Ordering/OrderQueries.cs
+@@ -0,0 +1,28 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Ordering;
++
++public static class OrderQueries
++{
++    public static async Task<IResult> Get(int id, OrdersDbContext db)
++    {
++        var order = await db.Orders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.Id == id);
++        return order is null ? Results.NotFound() : Results.Ok(order.ToResponse());
++    }
++
++    public static async Task<IResult> List(int? customerId, string? status, OrdersDbContext db)
++    {
++        var query = db.Orders.Include(o => o.Lines).AsQueryable();
++        if (customerId is int cid) query = query.Where(o => o.CustomerId == cid);
++        if (status is not null)
++        {
++            var name = Enum.GetNames<OrderStatus>().FirstOrDefault(n => string.Equals(n, status, StringComparison.OrdinalIgnoreCase));
++            if (name is null) return Results.BadRequest();
++            var s = Enum.Parse<OrderStatus>(name);
++            query = query.Where(o => o.Status == s);
++        }
++        var list = (await query.OrderBy(o => o.Id).ToListAsync()).Select(o => o.ToResponse()).ToList();
++        return Results.Ok(list);
++    }
++}
+diff --git a/src/Orders.Api/Ordering/OrderStatusRules.cs b/src/Orders.Api/Ordering/OrderStatusRules.cs
+new file mode 100644
+index 0000000..b3d0eff
+--- /dev/null
++++ b/src/Orders.Api/Ordering/OrderStatusRules.cs
+@@ -0,0 +1,14 @@
++using Orders.Api.Data;
++
++namespace Orders.Api.Ordering;
++
++public static class OrderStatusRules
++{
++    public static bool CanTransition(OrderStatus from, OrderStatus to) => (from, to) switch
++    {
++        (OrderStatus.Pending, OrderStatus.Paid) => true,
++        (OrderStatus.Pending, OrderStatus.Cancelled) => true,
++        (OrderStatus.Paid, OrderStatus.Shipped) => true,
++        _ => false,
++    };
++}
+diff --git a/src/Orders.Api/Ordering/PayOrderHandler.cs b/src/Orders.Api/Ordering/PayOrderHandler.cs
+new file mode 100644
+index 0000000..0587833
+--- /dev/null
++++ b/src/Orders.Api/Ordering/PayOrderHandler.cs
+@@ -0,0 +1,28 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++using Orders.Api.Invoices;
++
++namespace Orders.Api.Ordering;
++
++public static class PayOrderHandler
++{
++    public static async Task<IResult> Pay(int id, OrdersDbContext db, TimeProvider time)
++    {
++        var order = await db.Orders.FirstOrDefaultAsync(o => o.Id == id);
++        if (order is null) return Results.NotFound();
++        if (!OrderStatusRules.CanTransition(order.Status, OrderStatus.Paid)) return Results.Conflict();
++        var now = time.GetUtcNow().UtcDateTime;
++        order.Status = OrderStatus.Paid;
++        order.PaidOn = now;
++        var invoice = new Invoice
++        {
++            OrderId = order.Id,
++            Number = InvoiceNumber.Format(await db.Invoices.CountAsync() + 1),
++            IssuedOn = now,
++            Amount = order.Total,
++        };
++        db.Invoices.Add(invoice);
++        await db.SaveChangesAsync();
++        return Results.Ok(invoice.ToResponse());
++    }
++}
+diff --git a/src/Orders.Api/Ordering/PlaceOrderHandler.cs b/src/Orders.Api/Ordering/PlaceOrderHandler.cs
+new file mode 100644
+index 0000000..43f1794
+--- /dev/null
++++ b/src/Orders.Api/Ordering/PlaceOrderHandler.cs
+@@ -0,0 +1,54 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++using Orders.Api.Pricing;
++
++namespace Orders.Api.Ordering;
++
++public sealed record OrderLineRequest(int ProductId, int Quantity);
++public sealed record PlaceOrderRequest(int CustomerId, List<OrderLineRequest> Lines);
++
++public static class PlaceOrderHandler
++{
++    public static async Task<IResult> Place(PlaceOrderRequest req, OrdersDbContext db, TimeProvider time)
++    {
++        if (req.Lines is null || req.Lines.Count == 0) return Results.BadRequest();
++        if (req.Lines.Any(l => l.Quantity < 1)) return Results.BadRequest();
++        if (req.Lines.Select(l => l.ProductId).Distinct().Count() != req.Lines.Count) return Results.BadRequest();
++        if (!await db.Customers.AnyAsync(c => c.Id == req.CustomerId)) return Results.NotFound();
++
++        var ids = req.Lines.Select(l => l.ProductId).ToList();
++        var products = await db.Products.Where(p => ids.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
++        if (products.Count != ids.Count) return Results.NotFound();
++
++        var stock = await db.Stock.Where(s => ids.Contains(s.ProductId)).ToDictionaryAsync(s => s.ProductId);
++        if (req.Lines.Any(l => l.Quantity > (stock.GetValueOrDefault(l.ProductId)?.Quantity ?? 0))) return Results.Conflict();
++
++        var order = new Order
++        {
++            CustomerId = req.CustomerId,
++            Status = OrderStatus.Pending,
++            CreatedOn = time.GetUtcNow().UtcDateTime,
++        };
++        foreach (var l in req.Lines)
++        {
++            var price = products[l.ProductId].Price;
++            order.Lines.Add(new OrderLine
++            {
++                ProductId = l.ProductId,
++                Quantity = l.Quantity,
++                UnitPrice = price,
++                LineTotal = PriceCalculator.LineTotal(price, l.Quantity),
++            });
++            stock[l.ProductId].Quantity -= l.Quantity;
++        }
++        var totals = OrderTotals.Compute(order.Lines.Select(x => x.LineTotal));
++        order.Subtotal = totals.Subtotal;
++        order.Discount = totals.Discount;
++        order.Tax = totals.Tax;
++        order.Total = totals.Total;
++
++        db.Orders.Add(order);
++        await db.SaveChangesAsync();
++        return Results.Created($"/orders/{order.Id}", order.ToResponse());
++    }
++}
+diff --git a/src/Orders.Api/Ordering/ShipOrderHandler.cs b/src/Orders.Api/Ordering/ShipOrderHandler.cs
+new file mode 100644
+index 0000000..be80e22
+--- /dev/null
++++ b/src/Orders.Api/Ordering/ShipOrderHandler.cs
+@@ -0,0 +1,18 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Ordering;
++
++public static class ShipOrderHandler
++{
++    public static async Task<IResult> Ship(int id, OrdersDbContext db, TimeProvider time)
++    {
++        var order = await db.Orders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.Id == id);
++        if (order is null) return Results.NotFound();
++        if (!OrderStatusRules.CanTransition(order.Status, OrderStatus.Shipped)) return Results.Conflict();
++        order.Status = OrderStatus.Shipped;
++        order.ShippedOn = time.GetUtcNow().UtcDateTime;
++        await db.SaveChangesAsync();
++        return Results.Ok(order.ToResponse());
++    }
++}
+diff --git a/src/Orders.Api/Pricing/DiscountRule.cs b/src/Orders.Api/Pricing/DiscountRule.cs
+new file mode 100644
+index 0000000..6961f97
+--- /dev/null
++++ b/src/Orders.Api/Pricing/DiscountRule.cs
+@@ -0,0 +1,15 @@
++namespace Orders.Api.Pricing;
++
++public static class DiscountRule
++{
++    public const decimal SmallThreshold = 100.00m;
++    public const decimal SmallRate = 0.05m;
++    public const decimal LargeThreshold = 500.00m;
++    public const decimal LargeRate = 0.10m;
++
++    public static decimal Discount(decimal subtotal)
++    {
++        var rate = subtotal >= LargeThreshold ? LargeRate : subtotal >= SmallThreshold ? SmallRate : 0m;
++        return Math.Round(subtotal * rate, 2, MidpointRounding.AwayFromZero);
++    }
++}
+diff --git a/src/Orders.Api/Pricing/OrderTotals.cs b/src/Orders.Api/Pricing/OrderTotals.cs
+new file mode 100644
+index 0000000..94e8ea5
+--- /dev/null
++++ b/src/Orders.Api/Pricing/OrderTotals.cs
+@@ -0,0 +1,14 @@
++namespace Orders.Api.Pricing;
++
++public sealed record Totals(decimal Subtotal, decimal Discount, decimal Tax, decimal Total);
++
++public static class OrderTotals
++{
++    public static Totals Compute(IEnumerable<decimal> lineTotals)
++    {
++        var subtotal = lineTotals.Sum();
++        var discount = DiscountRule.Discount(subtotal);
++        var tax = TaxCalculator.Tax(subtotal - discount);
++        return new Totals(subtotal, discount, tax, subtotal - discount + tax);
++    }
++}
+diff --git a/src/Orders.Api/Pricing/PriceCalculator.cs b/src/Orders.Api/Pricing/PriceCalculator.cs
+new file mode 100644
+index 0000000..b513e27
+--- /dev/null
++++ b/src/Orders.Api/Pricing/PriceCalculator.cs
+@@ -0,0 +1,7 @@
++namespace Orders.Api.Pricing;
++
++public static class PriceCalculator
++{
++    public static decimal LineTotal(decimal unitPrice, int quantity)
++        => Math.Round(unitPrice * quantity, 2, MidpointRounding.AwayFromZero);
++}
+diff --git a/src/Orders.Api/Pricing/TaxCalculator.cs b/src/Orders.Api/Pricing/TaxCalculator.cs
+new file mode 100644
+index 0000000..50181a3
+--- /dev/null
++++ b/src/Orders.Api/Pricing/TaxCalculator.cs
+@@ -0,0 +1,8 @@
++namespace Orders.Api.Pricing;
++
++public static class TaxCalculator
++{
++    public const decimal Rate = 0.10m;
++
++    public static decimal Tax(decimal taxable) => Math.Round(taxable * Rate, 2, MidpointRounding.AwayFromZero);
++}
+diff --git a/src/Orders.Api/Program.cs b/src/Orders.Api/Program.cs
+index 875f6d5..6d06747 100644
+--- a/src/Orders.Api/Program.cs
++++ b/src/Orders.Api/Program.cs
+@@ -1,10 +1,52 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Catalog;
++using Orders.Api.Customers;
++using Orders.Api.Data;
++using Orders.Api.Inventory;
++using Orders.Api.Invoices;
++using Orders.Api.Ordering;
++using Orders.Api.Reports;
++
+ var builder = WebApplication.CreateBuilder(args);
+ builder.Services.AddSingleton(TimeProvider.System);
++builder.Services.AddDbContext<OrdersDbContext>(o =>
++    o.UseSqlite(builder.Configuration.GetConnectionString("Orders") ?? "Data Source=orders.db"));
+ 
+ var app = builder.Build();
+ 
++using (var scope = app.Services.CreateScope())
++{
++    scope.ServiceProvider.GetRequiredService<OrdersDbContext>().Database.EnsureCreated();
++}
++
+ app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+ 
++app.MapPost("/categories", CategoryHandlers.Create);
++app.MapGet("/categories", CategoryHandlers.List);
++app.MapPost("/products", CreateProductHandler.Create);
++app.MapGet("/products/{id:int}", ProductQueries.Get);
++app.MapGet("/products", ProductQueries.List);
++
++app.MapPost("/customers", CustomerHandlers.Create);
++app.MapGet("/customers/{id:int}", CustomerHandlers.Get);
++app.MapGet("/customers", CustomerHandlers.List);
++
++app.MapGet("/inventory/low", LowStockHandler.List);
++app.MapGet("/inventory/{productId:int}", StockHandlers.Get);
++app.MapPost("/inventory/{productId:int}/adjust", StockHandlers.Adjust);
++
++app.MapPost("/orders", PlaceOrderHandler.Place);
++app.MapGet("/orders/{id:int}", OrderQueries.Get);
++app.MapGet("/orders", OrderQueries.List);
++app.MapPost("/orders/{id:int}/pay", PayOrderHandler.Pay);
++app.MapPost("/orders/{id:int}/ship", ShipOrderHandler.Ship);
++app.MapPost("/orders/{id:int}/cancel", CancelOrderHandler.Cancel);
++app.MapGet("/orders/{id:int}/invoice", InvoiceQueries.ForOrder);
++app.MapGet("/invoices/{number}", InvoiceQueries.ByNumber);
++
++app.MapGet("/reports/sales-by-day", SalesReport.ByDay);
++app.MapGet("/reports/top-products", TopProductsReport.List);
++
+ app.Run();
+ 
+ public partial class Program;
+diff --git a/src/Orders.Api/Reports/SalesReport.cs b/src/Orders.Api/Reports/SalesReport.cs
+new file mode 100644
+index 0000000..bd7041a
+--- /dev/null
++++ b/src/Orders.Api/Reports/SalesReport.cs
+@@ -0,0 +1,23 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Reports;
++
++public sealed record DailySales(DateOnly Date, int Orders, decimal Total);
++
++public static class SalesReport
++{
++    public static async Task<IResult> ByDay(DateOnly from, DateOnly to, OrdersDbContext db)
++    {
++        if (from > to) return Results.BadRequest();
++        var start = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
++        var end = to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
++        var paid = await db.Orders.Where(o => o.PaidOn != null && o.PaidOn >= start && o.PaidOn < end).ToListAsync();
++        var list = paid
++            .GroupBy(o => DateOnly.FromDateTime(o.PaidOn!.Value))
++            .OrderBy(g => g.Key)
++            .Select(g => new DailySales(g.Key, g.Count(), g.Sum(o => o.Total)))
++            .ToList();
++        return Results.Ok(list);
++    }
++}
+diff --git a/src/Orders.Api/Reports/TopProductsReport.cs b/src/Orders.Api/Reports/TopProductsReport.cs
+new file mode 100644
+index 0000000..bc098e9
+--- /dev/null
++++ b/src/Orders.Api/Reports/TopProductsReport.cs
+@@ -0,0 +1,29 @@
++using Microsoft.EntityFrameworkCore;
++using Orders.Api.Data;
++
++namespace Orders.Api.Reports;
++
++public sealed record ProductSales(int ProductId, string Sku, int Quantity, decimal Revenue);
++
++public static class TopProductsReport
++{
++    public const int DefaultLimit = 5;
++
++    public static async Task<IResult> List(int? limit, OrdersDbContext db)
++    {
++        var take = limit ?? DefaultLimit;
++        if (take < 1) return Results.BadRequest();
++        var lines = await db.Orders
++            .Where(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Shipped)
++            .SelectMany(o => o.Lines)
++            .ToListAsync();
++        var skus = await db.Products.ToDictionaryAsync(p => p.Id, p => p.Sku);
++        var list = lines
++            .GroupBy(l => l.ProductId)
++            .Select(g => new ProductSales(g.Key, skus.GetValueOrDefault(g.Key) ?? "", g.Sum(l => l.Quantity), g.Sum(l => l.LineTotal)))
++            .OrderByDescending(p => p.Quantity).ThenBy(p => p.ProductId)
++            .Take(take)
++            .ToList();
++        return Results.Ok(list);
++    }
++}

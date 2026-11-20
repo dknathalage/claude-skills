@@ -1,0 +1,553 @@
+{
+  "goal": "Add a catalog, customers, inventory, orders with stock reservation and a status flow, pricing, invoices and reports to Orders.Api as SPEC.md describes.",
+  "spec": "SPEC.md",
+  "base_branch": "main",
+  "verify_all": "dotnet test",
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "Entities, OrdersDbContext, mappings and test database helper",
+      "depends_on": [],
+      "owns": [
+        "src/Orders.Api/Data/Category.cs",
+        "src/Orders.Api/Data/Product.cs",
+        "src/Orders.Api/Data/Customer.cs",
+        "src/Orders.Api/Data/StockItem.cs",
+        "src/Orders.Api/Data/Order.cs",
+        "src/Orders.Api/Data/Invoice.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "tests/Orders.Tests/TestDb.cs",
+        "tests/Orders.Tests/DataTests.cs"
+      ],
+      "reads": [
+        "SPEC.md"
+      ],
+      "instructions": "1. Create tests/Orders.Tests/TestDb.cs: `namespace Orders.Tests; public static class TestDb { public static OrdersDbContext Create() }` — open a `Microsoft.Data.Sqlite.SqliteConnection(\"DataSource=:memory:\")`, keep it open, build `new DbContextOptionsBuilder<OrdersDbContext>().UseSqlite(conn).Options`, create the context, call `Database.EnsureCreated()`, return it.\n2. Create tests/Orders.Tests/DataTests.cs (class DataTests) with xUnit tests using TestDb.Create(): (a) add a Category, a Product (Sku \"A\", Price 2.50m, that CategoryId), a Customer, a StockItem { ProductId = product.Id, Quantity = 7 }, an Order (Status Paid, CreatedOn 2026-01-01 09:00 UTC, Total 5.50m) with two OrderLines, and an Invoice; SaveChanges; read them back with a fresh query (`Include(o => o.Lines)` for the order) and assert each `ToResponse()` returns the same values; (b) OrderResponse.Status is the string \"Paid\" and its Lines are ordered by line Id; (c) the StockItem row is found with `db.Stock.Find(product.Id)`. Run them and watch them fail to compile.\n3. Create Category.cs, Product.cs, Customer.cs, StockItem.cs, Order.cs (holds `OrderStatus`, `Order`, `OrderLine`, `OrderLineResponse`, `OrderResponse`), Invoice.cs, Mappings.cs and OrdersDbContext.cs in src/Orders.Api/Data, namespace Orders.Api.Data, exactly as the SPEC's code shape: each response record sits in its entity's file, `Mappings` holds the six `ToResponse` extension methods (Order's maps `Status.ToString()` and `Lines.OrderBy(l => l.Id)` to a List<OrderLineResponse>), and `OnModelCreating` makes `StockItem.ProductId` the key with `ValueGeneratedNever()`.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~DataTests",
+      "done_when": [
+        "DataTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "PriceCalculator",
+      "depends_on": [],
+      "owns": [
+        "src/Orders.Api/Pricing/PriceCalculator.cs",
+        "tests/Orders.Tests/PriceCalculatorTests.cs"
+      ],
+      "reads": [
+        "SPEC.md"
+      ],
+      "instructions": "1. In tests/Orders.Tests/PriceCalculatorTests.cs write xUnit tests (PriceCalculatorTests, namespace Orders.Tests): `PriceCalculator.LineTotal(10.00m, 3)` → 30.00m; `LineTotal(3.335m, 3)` → 10.01m (10.005 rounds away from zero); `LineTotal(0.125m, 1)` → 0.13m; `LineTotal(7.25m, 2)` → 14.50m.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Pricing/PriceCalculator.cs: `namespace Orders.Api.Pricing; public static class PriceCalculator { public static decimal LineTotal(decimal unitPrice, int quantity) }` returning `Math.Round(unitPrice * quantity, 2, MidpointRounding.AwayFromZero)`.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~PriceCalculatorTests",
+      "done_when": [
+        "PriceCalculatorTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T3",
+      "title": "DiscountRule",
+      "depends_on": [],
+      "owns": [
+        "src/Orders.Api/Pricing/DiscountRule.cs",
+        "tests/Orders.Tests/DiscountRuleTests.cs"
+      ],
+      "reads": [
+        "SPEC.md"
+      ],
+      "instructions": "1. In tests/Orders.Tests/DiscountRuleTests.cs write xUnit tests (DiscountRuleTests, namespace Orders.Tests): `DiscountRule.Discount(x)` for x = 0m → 0; 99.99m → 0; 100.00m → 5.00m; 100.10m → 5.01m (5.005 rounds away from zero); 499.99m → 25.00m; 500.00m → 50.00m; 1234.56m → 123.46m.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Pricing/DiscountRule.cs: `namespace Orders.Api.Pricing; public static class DiscountRule` with the four constants from the SPEC (SmallThreshold 100.00m, SmallRate 0.05m, LargeThreshold 500.00m, LargeRate 0.10m) and `public static decimal Discount(decimal subtotal)`: rate = subtotal >= LargeThreshold ? LargeRate : subtotal >= SmallThreshold ? SmallRate : 0m; return `Math.Round(subtotal * rate, 2, MidpointRounding.AwayFromZero)`.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~DiscountRuleTests",
+      "done_when": [
+        "DiscountRuleTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T4",
+      "title": "TaxCalculator",
+      "depends_on": [],
+      "owns": [
+        "src/Orders.Api/Pricing/TaxCalculator.cs",
+        "tests/Orders.Tests/TaxCalculatorTests.cs"
+      ],
+      "reads": [
+        "SPEC.md"
+      ],
+      "instructions": "1. In tests/Orders.Tests/TaxCalculatorTests.cs write xUnit tests (TaxCalculatorTests, namespace Orders.Tests): `TaxCalculator.Rate` == 0.10m; `Tax(114.00m)` → 11.40m; `Tax(0.05m)` → 0.01m (0.005 rounds away from zero); `Tax(95.09m)` → 9.51m; `Tax(10.01m)` → 1.00m; `Tax(0m)` → 0m.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Pricing/TaxCalculator.cs: `namespace Orders.Api.Pricing; public static class TaxCalculator { public const decimal Rate = 0.10m; public static decimal Tax(decimal taxable) }` returning `Math.Round(taxable * Rate, 2, MidpointRounding.AwayFromZero)`.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~TaxCalculatorTests",
+      "done_when": [
+        "TaxCalculatorTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T5",
+      "title": "InvoiceNumber",
+      "depends_on": [],
+      "owns": [
+        "src/Orders.Api/Invoices/InvoiceNumber.cs",
+        "tests/Orders.Tests/InvoiceNumberTests.cs"
+      ],
+      "reads": [
+        "SPEC.md"
+      ],
+      "instructions": "1. In tests/Orders.Tests/InvoiceNumberTests.cs write xUnit tests (InvoiceNumberTests, namespace Orders.Tests): `InvoiceNumber.Format(1)` → \"INV-000001\"; `Format(42)` → \"INV-000042\"; `Format(999999)` → \"INV-999999\"; `Format(0)`, `Format(-1)` and `Format(1000000)` throw `ArgumentOutOfRangeException` (Assert.Throws).\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Invoices/InvoiceNumber.cs: `namespace Orders.Api.Invoices; public static class InvoiceNumber { public static string Format(int sequence) }` — if sequence < 1 or > 999999 throw `new ArgumentOutOfRangeException(nameof(sequence))`; else return `$\"INV-{sequence:D6}\"`.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~InvoiceNumberTests",
+      "done_when": [
+        "InvoiceNumberTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "OrderStatusRules",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Ordering/OrderStatusRules.cs",
+        "tests/Orders.Tests/OrderStatusRulesTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Order.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/OrderStatusRulesTests.cs write xUnit tests (OrderStatusRulesTests, namespace Orders.Tests): a `[Theory]` over all 16 (from, to) pairs of `OrderStatus` asserting `OrderStatusRules.CanTransition(from, to)` is true exactly for (Pending, Paid), (Pending, Cancelled) and (Paid, Shipped) and false for the other 13 (including same-status pairs like (Paid, Paid)).\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Ordering/OrderStatusRules.cs: `namespace Orders.Api.Ordering; public static class OrderStatusRules { public static bool CanTransition(OrderStatus from, OrderStatus to) }` (using Orders.Api.Data) — a switch on `(from, to)` returning true for the three legal pairs and false otherwise.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~OrderStatusRulesTests",
+      "done_when": [
+        "OrderStatusRulesTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "OrderTotals",
+      "depends_on": [
+        "T2",
+        "T3",
+        "T4"
+      ],
+      "owns": [
+        "src/Orders.Api/Pricing/OrderTotals.cs",
+        "tests/Orders.Tests/OrderTotalsTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Pricing/DiscountRule.cs",
+        "src/Orders.Api/Pricing/TaxCalculator.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/OrderTotalsTests.cs write xUnit tests (OrderTotalsTests, namespace Orders.Tests): `OrderTotals.Compute([40.00m, 15.00m])` → `new Totals(55.00m, 0m, 5.50m, 60.50m)`; `Compute([120.00m])` → (120.00, 6.00, 11.40, 125.40); `Compute([100.10m])` → (100.10, 5.01, 9.51, 104.60); `Compute([250.00m, 250.00m])` → (500.00, 50.00, 45.00, 495.00); `Compute([])` → (0, 0, 0, 0). Compare with Assert.Equal on the records.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Pricing/OrderTotals.cs: `namespace Orders.Api.Pricing; public sealed record Totals(decimal Subtotal, decimal Discount, decimal Tax, decimal Total); public static class OrderTotals { public static Totals Compute(IEnumerable<decimal> lineTotals) }` — subtotal = lineTotals.Sum(); discount = DiscountRule.Discount(subtotal); tax = TaxCalculator.Tax(subtotal - discount); total = subtotal - discount + tax.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~OrderTotalsTests",
+      "done_when": [
+        "OrderTotalsTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T8",
+      "title": "CategoryHandlers",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Catalog/CategoryHandlers.cs",
+        "tests/Orders.Tests/CategoryHandlersTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Category.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/CategoryHandlersTests.cs write xUnit tests (CategoryHandlersTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: Create(new(\"Tools\")) returns `Microsoft.AspNetCore.Http.HttpResults.Created<CategoryResponse>` with Location \"/categories/1\" and Name \"Tools\"; Create(new(\"  \")) returns `BadRequest`; creating \"Tools\" twice returns `Conflict` the second time; after creating \"Garden\", \"Books\", \"Tools\", List returns `Ok<List<CategoryResponse>>` with names [\"Books\",\"Garden\",\"Tools\"].\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Catalog/CategoryHandlers.cs: namespace Orders.Api.Catalog with `public sealed record CreateCategoryRequest(string Name)` and `public static class CategoryHandlers` with `Create(CreateCategoryRequest req, OrdersDbContext db)` and `List(OrdersDbContext db)`, both `async Task<IResult>`. Create: `string.IsNullOrWhiteSpace(req.Name)` → Results.BadRequest(); `db.Categories.AnyAsync(c => c.Name == req.Name)` → Results.Conflict(); else add, SaveChangesAsync, return `Results.Created($\"/categories/{category.Id}\", category.ToResponse())`. List: load with ToListAsync, then order by Name with `StringComparer.Ordinal`, map ToResponse into a List<CategoryResponse>, return Results.Ok(list).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~CategoryHandlersTests",
+      "done_when": [
+        "CategoryHandlersTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T9",
+      "title": "CreateProductHandler",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Catalog/CreateProductHandler.cs",
+        "tests/Orders.Tests/CreateProductHandlerTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Product.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/CreateProductHandlerTests.cs write xUnit tests (CreateProductHandlerTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: with a seeded Category, Create(new(\"HAM-1\",\"Hammer\",12.50m,catId)) returns `Created<ProductResponse>` with Location \"/products/{id}\" and the same fields; blank Sku, blank Name, Price 0m and Price -1m each return `BadRequest`; CategoryId 999 returns `BadRequest`; CategoryId null is allowed (Created); a second product with Sku \"HAM-1\" returns `Conflict`; after the failures `db.Products.Count()` only counts the successful creates.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Catalog/CreateProductHandler.cs: namespace Orders.Api.Catalog with `public sealed record CreateProductRequest(string Sku, string Name, decimal Price, int? CategoryId)` and `public static class CreateProductHandler { public static async Task<IResult> Create(CreateProductRequest req, OrdersDbContext db) }`. Checks in this order: blank Sku or Name (string.IsNullOrWhiteSpace) or Price <= 0 → Results.BadRequest(); CategoryId has a value and no Category with that Id → Results.BadRequest(); a Product with the same Sku exists → Results.Conflict(). Else add, SaveChangesAsync, return `Results.Created($\"/products/{product.Id}\", product.ToResponse())`.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~CreateProductHandlerTests",
+      "done_when": [
+        "CreateProductHandlerTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T10",
+      "title": "ProductQueries",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Catalog/ProductQueries.cs",
+        "tests/Orders.Tests/ProductQueriesTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Product.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/ProductQueriesTests.cs write xUnit tests (ProductQueriesTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: seed categories 1 and 2 and products A (cat 1), B (cat 2), D (cat 1), E (no category): Get(A.Id) returns `Ok<ProductResponse>` with Sku \"A\"; Get(999) returns `NotFound`; List(null) returns `Ok<List<ProductResponse>>` with all four in Id order; List(1) returns [A, D]; List(3) returns an empty list.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Catalog/ProductQueries.cs: namespace Orders.Api.Catalog, `public static class ProductQueries` with `async Task<IResult> Get(int id, OrdersDbContext db)` — `db.Products.FindAsync(id)`; null → Results.NotFound(); else Results.Ok(product.ToResponse()) — and `async Task<IResult> List(int? categoryId, OrdersDbContext db)` — start from db.Products, when categoryId has a value add `Where(p => p.CategoryId == categoryId)`, `OrderBy(p => p.Id)`, ToListAsync, map ToResponse into a List<ProductResponse>, return Results.Ok(list).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~ProductQueriesTests",
+      "done_when": [
+        "ProductQueriesTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T11",
+      "title": "CustomerHandlers",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Customers/CustomerHandlers.cs",
+        "tests/Orders.Tests/CustomerHandlersTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Customer.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/CustomerHandlersTests.cs write xUnit tests (CustomerHandlersTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: Create(new(\"Ada\",\"  Ada@Example.COM \")) returns `Created<CustomerResponse>` with Location \"/customers/1\" and Email \"ada@example.com\"; blank Name returns `BadRequest`; Email \"no-at-sign\" returns `BadRequest`; then Create(new(\"Ada 2\",\" ADA@example.com\")) returns `Conflict`; Get(1) returns `Ok<CustomerResponse>`; Get(999) returns `NotFound`; after creating a second customer, List returns `Ok<List<CustomerResponse>>` in Id order.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Customers/CustomerHandlers.cs: namespace Orders.Api.Customers with `public sealed record CreateCustomerRequest(string Name, string Email)` and `public static class CustomerHandlers` with `Create(CreateCustomerRequest req, OrdersDbContext db)`, `Get(int id, OrdersDbContext db)` and `List(OrdersDbContext db)`, all `async Task<IResult>`. Create: blank Name, or Email null or not containing '@' → Results.BadRequest(); email = req.Email.Trim().ToLowerInvariant(); a Customer with that Email exists → Results.Conflict(); else save with the normalised email and return `Results.Created($\"/customers/{customer.Id}\", customer.ToResponse())`. Get: FindAsync, null → Results.NotFound(), else Results.Ok(ToResponse()). List: OrderBy Id, ToListAsync, map into a List<CustomerResponse>, Results.Ok(list).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~CustomerHandlersTests",
+      "done_when": [
+        "CustomerHandlersTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T12",
+      "title": "StockHandlers",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Inventory/StockHandlers.cs",
+        "tests/Orders.Tests/StockHandlersTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/StockItem.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/StockHandlersTests.cs write xUnit tests (StockHandlersTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: seed a Product with no StockItem: Get(p.Id) returns `Ok<StockResponse>` with Quantity 0; Adjust(p.Id, new(10)) returns `Ok<StockResponse>` with Quantity 10 and creates the StockItem row; Adjust(p.Id, new(-4)) gives 6; Adjust(p.Id, new(-7)) returns `Conflict` and the quantity stays 6; Adjust(p.Id, new(-6)) gives 0; Adjust(p.Id, new(0)) returns `BadRequest`; Get(999) and Adjust(999, new(5)) return `NotFound`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Inventory/StockHandlers.cs: namespace Orders.Api.Inventory with `public sealed record AdjustStockRequest(int Delta)` and `public static class StockHandlers` with `async Task<IResult> Get(int productId, OrdersDbContext db)` and `async Task<IResult> Adjust(int productId, AdjustStockRequest req, OrdersDbContext db)`. Both first return Results.NotFound() when no Product has that Id. Get: `db.Stock.FindAsync(productId)`; return `Results.Ok(new StockResponse(productId, stock?.Quantity ?? 0))`. Adjust: Delta == 0 → Results.BadRequest(); next = (stock?.Quantity ?? 0) + Delta; next < 0 → Results.Conflict(); if there is no row add `new StockItem { ProductId = productId }`; set Quantity = next; SaveChangesAsync; return Results.Ok(stock.ToResponse()).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~StockHandlersTests",
+      "done_when": [
+        "StockHandlersTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T13",
+      "title": "LowStockHandler",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Inventory/LowStockHandler.cs",
+        "tests/Orders.Tests/LowStockHandlerTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/StockItem.cs",
+        "src/Orders.Api/Data/Product.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/LowStockHandlerTests.cs write xUnit tests (LowStockHandlerTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: seed products NONE (no StockItem), FOUR (4), FIVE (5), ONE (1): List(null) returns `Ok<List<StockResponse>>` equal to [(NONE,0),(ONE,1),(FOUR,4)] (FIVE excluded: strictly below 5); List(6) also includes FIVE last; List(1) returns only NONE; List(0) and List(-3) return `BadRequest`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Inventory/LowStockHandler.cs: namespace Orders.Api.Inventory, `public static class LowStockHandler { public const int DefaultThreshold = 5; public static async Task<IResult> List(int? threshold, OrdersDbContext db) }` — limit = threshold ?? DefaultThreshold; limit < 1 → Results.BadRequest(); load all product ids (`db.Products.Select(p => p.Id).ToListAsync()`) and the stock as a dictionary ProductId → Quantity; build `new StockResponse(id, stock.GetValueOrDefault(id))` per product, keep Quantity < limit, order by Quantity then ProductId, ToList, return Results.Ok(list).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~LowStockHandlerTests",
+      "done_when": [
+        "LowStockHandlerTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T14",
+      "title": "OrderQueries",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Ordering/OrderQueries.cs",
+        "tests/Orders.Tests/OrderQueriesTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Order.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/OrderQueriesTests.cs write xUnit tests (OrderQueriesTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: seed customers 1 and 2 and three Orders with one OrderLine each: o1 (customer 1, Pending), o2 (customer 2, Pending), o3 (customer 1, Paid). Get(o1.Id) returns `Ok<OrderResponse>` whose Lines has 1 item; Get(999) returns `NotFound`; List(null, null) returns `Ok<List<OrderResponse>>` [o1,o2,o3]; List(1, null) → [o1,o3]; List(1, \"paid\") → [o3]; List(null, \"Pending\") → [o1,o2]; List(null, \"bogus\") and List(null, \"1\") return `BadRequest`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Ordering/OrderQueries.cs: namespace Orders.Api.Ordering, `public static class OrderQueries` with `async Task<IResult> Get(int id, OrdersDbContext db)` — `db.Orders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.Id == id)`; null → Results.NotFound(); else Results.Ok(order.ToResponse()) — and `async Task<IResult> List(int? customerId, string? status, OrdersDbContext db)`: start from `db.Orders.Include(o => o.Lines)`; filter by CustomerId when given; when status is not null find the name in `Enum.GetNames<OrderStatus>()` equal to it with StringComparison.OrdinalIgnoreCase (none → Results.BadRequest()), parse it with Enum.Parse<OrderStatus> and filter on Status; OrderBy Id, ToListAsync, map into a List<OrderResponse>, Results.Ok(list).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~OrderQueriesTests",
+      "done_when": [
+        "OrderQueriesTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T15",
+      "title": "PlaceOrderHandler",
+      "depends_on": [
+        "T1",
+        "T2",
+        "T7"
+      ],
+      "owns": [
+        "src/Orders.Api/Ordering/PlaceOrderHandler.cs",
+        "tests/Orders.Tests/PlaceOrderHandlerTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Order.cs",
+        "src/Orders.Api/Data/StockItem.cs",
+        "src/Orders.Api/Pricing/PriceCalculator.cs",
+        "src/Orders.Api/Pricing/OrderTotals.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/PlaceOrderHandlerTests.cs write xUnit tests (PlaceOrderHandlerTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: use `new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026,1,1,9,0,0,TimeSpan.Zero))`; seed a Customer, Product A (price 20.00m, StockItem 10) and Product B (price 5.00m, StockItem 10). Place(new(cust, [new(A,2), new(B,3)]), db, time) returns `Created<OrderResponse>` with Location \"/orders/{id}\", Status \"Pending\", CreatedOn 2026-01-01 09:00, line totals 40.00/15.00, Subtotal 55.00, Discount 0, Tax 5.50, Total 60.50, and stock becomes A=8, B=7; ordering 3 of a product with stock 2 alongside a valid line returns `Conflict` and changes no stock and saves no order; a product with no StockItem returns `Conflict`; ordering exactly all stock succeeds; empty Lines, quantity 0, quantity -1 and the same product on two lines each return `BadRequest`; unknown customer and unknown product each return `NotFound`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Ordering/PlaceOrderHandler.cs: namespace Orders.Api.Ordering with `public sealed record OrderLineRequest(int ProductId, int Quantity)`, `public sealed record PlaceOrderRequest(int CustomerId, List<OrderLineRequest> Lines)` and `public static class PlaceOrderHandler { public static async Task<IResult> Place(PlaceOrderRequest req, OrdersDbContext db, TimeProvider time) }`. Check in this order: Lines null or empty, any Quantity < 1, or duplicate ProductIds → Results.BadRequest(); customer missing → Results.NotFound(); load the products whose Id is in the line ids into a dictionary, any missing → Results.NotFound(); load their StockItems into a dictionary, any line Quantity greater than its stock (missing row = 0) → Results.Conflict(). Then build an Order { CustomerId, Status = Pending, CreatedOn = time.GetUtcNow().UtcDateTime } and one OrderLine per request line with UnitPrice = product.Price and LineTotal = PriceCalculator.LineTotal(price, quantity), decrement each StockItem.Quantity by the line quantity, set Subtotal/Discount/Tax/Total from OrderTotals.Compute(the line totals), add the order, SaveChangesAsync once, return `Results.Created($\"/orders/{order.Id}\", order.ToResponse())`.\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~PlaceOrderHandlerTests",
+      "done_when": [
+        "PlaceOrderHandlerTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T16",
+      "title": "PayOrderHandler",
+      "depends_on": [
+        "T1",
+        "T5",
+        "T6"
+      ],
+      "owns": [
+        "src/Orders.Api/Ordering/PayOrderHandler.cs",
+        "tests/Orders.Tests/PayOrderHandlerTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Order.cs",
+        "src/Orders.Api/Data/Invoice.cs",
+        "src/Orders.Api/Invoices/InvoiceNumber.cs",
+        "src/Orders.Api/Ordering/OrderStatusRules.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/PayOrderHandlerTests.cs write xUnit tests (PayOrderHandlerTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: use `new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026,1,1,9,0,0,TimeSpan.Zero))`; seed two Pending Orders with Total 125.40m and 10.00m. Pay(o1.Id, db, time) returns `Ok<InvoiceResponse>` with Number \"INV-000001\", OrderId o1.Id, Amount 125.40m and IssuedOn 2026-01-01 09:00; the order row now has Status Paid and PaidOn set; paying o1 again returns `Conflict` and creates no invoice; Pay(o2.Id) gives \"INV-000002\"; paying a Cancelled or Shipped order returns `Conflict`; Pay(999) returns `NotFound`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Ordering/PayOrderHandler.cs: namespace Orders.Api.Ordering, `public static class PayOrderHandler { public static async Task<IResult> Pay(int id, OrdersDbContext db, TimeProvider time) }` (using Orders.Api.Invoices) — find the order (missing → Results.NotFound()); `!OrderStatusRules.CanTransition(order.Status, OrderStatus.Paid)` → Results.Conflict(); now = time.GetUtcNow().UtcDateTime; set Status = Paid, PaidOn = now; add `new Invoice { OrderId = order.Id, Number = InvoiceNumber.Format(await db.Invoices.CountAsync() + 1), IssuedOn = now, Amount = order.Total }`; SaveChangesAsync; return Results.Ok(invoice.ToResponse()).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~PayOrderHandlerTests",
+      "done_when": [
+        "PayOrderHandlerTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T17",
+      "title": "ShipOrderHandler",
+      "depends_on": [
+        "T1",
+        "T6"
+      ],
+      "owns": [
+        "src/Orders.Api/Ordering/ShipOrderHandler.cs",
+        "tests/Orders.Tests/ShipOrderHandlerTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Order.cs",
+        "src/Orders.Api/Ordering/OrderStatusRules.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/ShipOrderHandlerTests.cs write xUnit tests (ShipOrderHandlerTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: use `new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026,1,1,9,0,0,TimeSpan.Zero))`; seed Orders with one line each. Shipping a Paid order returns `Ok<OrderResponse>` with Status \"Shipped\" and ShippedOn 2026-01-01 09:00 and 1 line; shipping a Pending, a Shipped or a Cancelled order returns `Conflict` and leaves its Status unchanged; Ship(999) returns `NotFound`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Ordering/ShipOrderHandler.cs: namespace Orders.Api.Ordering, `public static class ShipOrderHandler { public static async Task<IResult> Ship(int id, OrdersDbContext db, TimeProvider time) }` — `db.Orders.Include(o => o.Lines).FirstOrDefaultAsync(o => o.Id == id)` (missing → Results.NotFound()); `!OrderStatusRules.CanTransition(order.Status, OrderStatus.Shipped)` → Results.Conflict(); set Status = Shipped, ShippedOn = time.GetUtcNow().UtcDateTime; SaveChangesAsync; return Results.Ok(order.ToResponse()).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~ShipOrderHandlerTests",
+      "done_when": [
+        "ShipOrderHandlerTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T18",
+      "title": "CancelOrderHandler",
+      "depends_on": [
+        "T1",
+        "T6"
+      ],
+      "owns": [
+        "src/Orders.Api/Ordering/CancelOrderHandler.cs",
+        "tests/Orders.Tests/CancelOrderHandlerTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Order.cs",
+        "src/Orders.Api/Data/StockItem.cs",
+        "src/Orders.Api/Ordering/OrderStatusRules.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/CancelOrderHandlerTests.cs write xUnit tests (CancelOrderHandlerTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: use `new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026,1,1,9,0,0,TimeSpan.Zero))`; seed products A (StockItem 0) and B (StockItem 3) and a Pending Order with lines (A, 5) and (B, 2). Cancel returns `Ok<OrderResponse>` with Status \"Cancelled\" and CancelledOn 2026-01-01 09:00, and stock becomes A=5, B=5; cancelling it again returns `Conflict` and stock stays A=5, B=5; cancelling a Paid order returns `Conflict` and releases nothing; a line whose product has no StockItem row creates the row with that quantity; Cancel(999) returns `NotFound`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Ordering/CancelOrderHandler.cs: namespace Orders.Api.Ordering, `public static class CancelOrderHandler { public static async Task<IResult> Cancel(int id, OrdersDbContext db, TimeProvider time) }` — load the order with `Include(o => o.Lines)` (missing → Results.NotFound()); `!OrderStatusRules.CanTransition(order.Status, OrderStatus.Cancelled)` → Results.Conflict(); for each line `db.Stock.FindAsync(line.ProductId)`, add `new StockItem { ProductId = line.ProductId }` when missing, and add line.Quantity to its Quantity; set Status = Cancelled, CancelledOn = time.GetUtcNow().UtcDateTime; SaveChangesAsync; return Results.Ok(order.ToResponse()).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~CancelOrderHandlerTests",
+      "done_when": [
+        "CancelOrderHandlerTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T19",
+      "title": "InvoiceQueries",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Invoices/InvoiceQueries.cs",
+        "tests/Orders.Tests/InvoiceQueriesTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Invoice.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/InvoiceQueriesTests.cs write xUnit tests (InvoiceQueriesTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: seed two Orders and one Invoice { OrderId = o1.Id, Number = \"INV-000001\", Amount = 11.00m }: ByNumber(\"INV-000001\") returns `Ok<InvoiceResponse>` with OrderId o1.Id; ByNumber(\"INV-000099\") returns `NotFound`; ForOrder(o1.Id) returns `Ok<InvoiceResponse>` with Number \"INV-000001\"; ForOrder(o2.Id) (no invoice) and ForOrder(999) return `NotFound`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Invoices/InvoiceQueries.cs: namespace Orders.Api.Invoices, `public static class InvoiceQueries` with `async Task<IResult> ByNumber(string number, OrdersDbContext db)` — `db.Invoices.FirstOrDefaultAsync(i => i.Number == number)` — and `async Task<IResult> ForOrder(int id, OrdersDbContext db)` — `db.Invoices.FirstOrDefaultAsync(i => i.OrderId == id)`; each returns Results.NotFound() when null, else Results.Ok(invoice.ToResponse()).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~InvoiceQueriesTests",
+      "done_when": [
+        "InvoiceQueriesTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T20",
+      "title": "SalesReport",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Reports/SalesReport.cs",
+        "tests/Orders.Tests/SalesReportTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Order.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/SalesReportTests.cs write xUnit tests (SalesReportTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: seed Orders: Paid with PaidOn 2026-01-01 09:00 Total 11.00m; Shipped with PaidOn 2026-01-01 23:00 Total 22.00m; Paid with PaidOn 2026-01-02 01:00 Total 33.00m; Paid with PaidOn 2026-01-04 01:00 Total 44.00m; a Pending order with no PaidOn Total 55.00m. ByDay(2026-01-01, 2026-01-04) returns `Ok<List<DailySales>>` equal to [(2026-01-01, 2, 33.00), (2026-01-02, 1, 33.00), (2026-01-04, 1, 44.00)]; ByDay(2026-01-02, 2026-01-03) → only 2026-01-02; ByDay(2026-01-04, 2026-01-04) → only 2026-01-04; ByDay(2026-01-05, 2026-01-04) returns `BadRequest`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Reports/SalesReport.cs: namespace Orders.Api.Reports with `public sealed record DailySales(DateOnly Date, int Orders, decimal Total)` and `public static class SalesReport { public static async Task<IResult> ByDay(DateOnly from, DateOnly to, OrdersDbContext db) }` — from > to → Results.BadRequest(); start = from.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc); end = to.AddDays(1).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc); load orders with `PaidOn != null && PaidOn >= start && PaidOn < end` via ToListAsync; then in memory group by DateOnly.FromDateTime(PaidOn.Value), order by date, map to new DailySales(date, count, sum of Total), ToList, Results.Ok(list).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~SalesReportTests",
+      "done_when": [
+        "SalesReportTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T21",
+      "title": "TopProductsReport",
+      "depends_on": [
+        "T1"
+      ],
+      "owns": [
+        "src/Orders.Api/Reports/TopProductsReport.cs",
+        "tests/Orders.Tests/TopProductsReportTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Data/Order.cs",
+        "src/Orders.Api/Data/Product.cs",
+        "src/Orders.Api/Data/OrdersDbContext.cs",
+        "src/Orders.Api/Data/Mappings.cs",
+        "tests/Orders.Tests/TestDb.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/TopProductsReportTests.cs write xUnit tests (TopProductsReportTests, namespace Orders.Tests) that call the handlers directly with `TestDb.Create()` and seed rows through the context: seed products A, B, D and Orders with lines: Paid [(A,2,LineTotal 2.00),(B,5,10.00)]; Shipped [(A,3,3.00),(D,5,15.00)]; Cancelled [(D,50,150.00)]; Pending [(B,40,80.00)]. List(null) returns `Ok<List<ProductSales>>` equal to [(A,\"A\",5,5.00),(B,\"B\",5,10.00),(D,\"D\",5,15.00)] (tie on quantity → product id ascending); List(1) → [A]; with one more Paid order line (B,1,2.00), List(null) starts with B; List(0) returns `BadRequest`.\n2. Run them and watch them fail.\n3. Create src/Orders.Api/Reports/TopProductsReport.cs: namespace Orders.Api.Reports with `public sealed record ProductSales(int ProductId, string Sku, int Quantity, decimal Revenue)` and `public static class TopProductsReport { public const int DefaultLimit = 5; public static async Task<IResult> List(int? limit, OrdersDbContext db) }` — take = limit ?? DefaultLimit; take < 1 → Results.BadRequest(); load `db.Orders.Where(o => o.Status == OrderStatus.Paid || o.Status == OrderStatus.Shipped).SelectMany(o => o.Lines)` with ToListAsync and a dictionary of product Id → Sku; in memory group lines by ProductId into new ProductSales(id, sku, sum Quantity, sum LineTotal), order by Quantity descending then ProductId, Take(take), ToList, Results.Ok(list).\n4. Run the tests until they pass.",
+      "verify": "dotnet test --filter FullyQualifiedName~TopProductsReportTests",
+      "done_when": [
+        "TopProductsReportTests pass",
+        "only owned files changed"
+      ]
+    },
+    {
+      "id": "T22",
+      "title": "Wire Program.cs and HTTP integration test",
+      "depends_on": [
+        "T8",
+        "T9",
+        "T10",
+        "T11",
+        "T12",
+        "T13",
+        "T14",
+        "T15",
+        "T16",
+        "T17",
+        "T18",
+        "T19",
+        "T20",
+        "T21"
+      ],
+      "owns": [
+        "src/Orders.Api/Program.cs",
+        "tests/Orders.Tests/ApiTests.cs"
+      ],
+      "reads": [
+        "SPEC.md",
+        "src/Orders.Api/Catalog/CategoryHandlers.cs",
+        "src/Orders.Api/Catalog/CreateProductHandler.cs",
+        "src/Orders.Api/Catalog/ProductQueries.cs",
+        "src/Orders.Api/Customers/CustomerHandlers.cs",
+        "src/Orders.Api/Inventory/StockHandlers.cs",
+        "src/Orders.Api/Inventory/LowStockHandler.cs",
+        "src/Orders.Api/Ordering/PlaceOrderHandler.cs",
+        "src/Orders.Api/Ordering/OrderQueries.cs",
+        "src/Orders.Api/Ordering/PayOrderHandler.cs",
+        "src/Orders.Api/Ordering/ShipOrderHandler.cs",
+        "src/Orders.Api/Ordering/CancelOrderHandler.cs",
+        "src/Orders.Api/Invoices/InvoiceQueries.cs",
+        "src/Orders.Api/Reports/SalesReport.cs",
+        "src/Orders.Api/Reports/TopProductsReport.cs",
+        "tests/Orders.Tests/HealthTests.cs"
+      ],
+      "instructions": "1. In tests/Orders.Tests/ApiTests.cs write one xUnit test using a `WebApplicationFactory<Program>` subclass that calls `builder.UseSetting(\"ConnectionStrings:Orders\", $\"Data Source={tempFile}\")` (tempFile = a new path under Path.GetTempPath()) and replaces TimeProvider with a FakeTimeProvider at 2026-01-01 09:00 UTC (services.RemoveAll<TimeProvider>(); services.AddSingleton<TimeProvider>(fake)). The test: POST /categories → 201; POST /products { sku \"A\", name \"Anvil\", price 60.00, categoryId } → 201; POST /inventory/{productId}/adjust { delta 10 } → 200; POST /customers → 201; POST /orders with one line of quantity 2 → 201 with total 125.40; GET /inventory/{productId} → quantity 8; POST /orders/{id}/pay → 200 with number \"INV-000001\"; POST /orders/{id}/ship → 200 with status \"Shipped\"; GET /reports/top-products → one row with quantity 2; GET /reports/sales-by-day?from=2026-01-01&to=2026-01-01 → one row with total 125.40. Run it and watch it fail.\n2. Edit src/Orders.Api/Program.cs: keep `builder.Services.AddSingleton(TimeProvider.System)`; add `builder.Services.AddDbContext<OrdersDbContext>(o => o.UseSqlite(builder.Configuration.GetConnectionString(\"Orders\") ?? \"Data Source=orders.db\"))`; after Build, in a scope call `Database.EnsureCreated()`; keep GET /health; map every route in the SPEC's HTTP table to its handler: POST /categories → CategoryHandlers.Create, GET /categories → CategoryHandlers.List, POST /products → CreateProductHandler.Create, GET /products/{id:int} → ProductQueries.Get, GET /products → ProductQueries.List, POST /customers → CustomerHandlers.Create, GET /customers/{id:int} → CustomerHandlers.Get, GET /customers → CustomerHandlers.List, GET /inventory/low → LowStockHandler.List, GET /inventory/{productId:int} → StockHandlers.Get, POST /inventory/{productId:int}/adjust → StockHandlers.Adjust, POST /orders → PlaceOrderHandler.Place, GET /orders/{id:int} → OrderQueries.Get, GET /orders → OrderQueries.List, POST /orders/{id:int}/pay → PayOrderHandler.Pay, POST /orders/{id:int}/ship → ShipOrderHandler.Ship, POST /orders/{id:int}/cancel → CancelOrderHandler.Cancel, GET /orders/{id:int}/invoice → InvoiceQueries.ForOrder, GET /invoices/{number} → InvoiceQueries.ByNumber, GET /reports/sales-by-day → SalesReport.ByDay, GET /reports/top-products → TopProductsReport.List; keep `public partial class Program;` at the end.\n3. Run the whole suite until it passes.",
+      "verify": "dotnet test",
+      "done_when": [
+        "ApiTests pass",
+        "whole suite passes",
+        "only owned files changed"
+      ]
+    }
+  ]
+}

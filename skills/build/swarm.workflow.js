@@ -122,10 +122,10 @@ function implementPrompt(t, problems, round) {
 function checkPrompt(t, impl) {
   const where = isolation === 'worktree'
     ? [
-        `The work is on branch ${branchOf(t.id)}. Check it out in a temporary worktree:`,
-        `git worktree add ../check-${t.id} ${branchOf(t.id)} && cd ../check-${t.id}`,
-        `List changed files with: git diff --name-only HEAD~1..HEAD (and any earlier commits of ${t.id}).`,
-        `Afterwards remove it: git worktree remove --force ../check-${t.id}`,
+        'You are in your own fresh git worktree inside the project. Do not create other worktrees or leave the project folder.',
+        `Check out the work: git checkout --detach ${branchOf(t.id)}`,
+        `List the files this task changed: git diff --name-only ${graph.base_branch}...HEAD`,
+        'Do not commit anything.',
       ].join('\n')
     : [
         'The work is uncommitted in the shared working folder, alongside other workers. Ownership of every task:',
@@ -212,7 +212,10 @@ async function runTask(id) {
     if (!impl) { problems = ['the worker crashed or returned nothing; start again']; continue }
     if (impl.status === 'blocked') { problems = [`worker reported blocked: ${impl.notes}`]; continue }
     if (doCheck) {
-      const chk = await agent(checkPrompt(t, impl), { ...WORKER, label: `check:${id}`, phase: 'Build', schema: CHECK_SCHEMA })
+      const chk = await agent(checkPrompt(t, impl), {
+        ...WORKER, label: `check:${id}`, phase: 'Build', schema: CHECK_SCHEMA,
+        ...(isolation === 'worktree' ? { isolation: 'worktree' } : {}),
+      })
       if (chk && chk.pass) break
       problems = chk ? chk.problems : ['the checker crashed; re-run verify and report honestly']
     } else {

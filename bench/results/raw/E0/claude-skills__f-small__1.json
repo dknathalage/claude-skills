@@ -1,0 +1,45 @@
+{
+  "exp": "E0",
+  "arm": "claude-skills",
+  "fixture": "f-small",
+  "rep": 1,
+  "wall_ms": 234396,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {},
+  "status": "ok",
+  "cost_usd": 0.98460891,
+  "model_cost_usd": {
+    "claude-opus-5-5": 0.9282094000000002,
+    "claude-haiku-5-5": 0.05639951
+  },
+  "tokens": {
+    "input": 4,
+    "output": 622
+  },
+  "hidden": {
+    "passed": 10,
+    "failed": 0
+  },
+  "review_score": 8,
+  "review_reasons": [
+    "The change meets the spec. Every API name and signature matches. Normalize trims first and then uses ToLowerInvariant. Validate checks the rules in the spec's order (Empty, TooLong, InvalidCharacters, BadHyphen) and reads the limit from TagsInfo.MaxLength. Process removes duplicate accepted tags in first-appearance order and keeps the raw string on each rejected entry.",
+    "The tests are thorough. They cover the exact 32/33-character length boundary, the order in which rules are checked (`#`×33, `-a#`, `-`+32a), the Turkish-I culture case with the original culture restored afterwards, rejection of whitespace-only input as Empty, duplicate invalid inputs, and null inputs and null list elements. They compare records by value.",
+    "The code is idiomatic C#: static helpers, sealed records, `is { } reason`, an ordinal HashSet and read-only result wrappers. The XML docs are accurate.",
+    "Minor: the PR commits internal planning files (docs/plans/*.json and *.md), which are noise in a feature PR and would probably be asked to be removed.",
+    "Minor: the tests hardcode 32 and 33 instead of deriving them from TagsInfo.MaxLength. Validate also throws on null, which the spec doesn't ask for; that is reasonable and documented, but it goes beyond the contract."
+  ],
+  "judge_cost_usd": 0.1557906,
+  "session_id": "f58457e9-0d83-4b4b-a957-b924026021c4",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 0,
+  "stuck": null,
+  "fix_rounds": null
+}

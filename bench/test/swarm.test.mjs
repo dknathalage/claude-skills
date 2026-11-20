@@ -136,3 +136,11 @@ test('task_branches_never_nest_under_feature_branch', async () => {
   const impl = calls.find(c => kind(c.opts) === 'implement');
   assert.doesNotMatch(impl.prompt, /build\/demo\//);
 });
+
+test('worktree_check_runs_in_its_own_worktree_inside_project', async () => {
+  const { calls } = await runWorkflow(SCRIPT, argsFor([task('T1')]), happy());
+  const chk = calls.find(c => kind(c.opts) === 'check');
+  assert.equal(chk.opts.isolation, 'worktree');
+  assert.doesNotMatch(chk.prompt, /\.\.\/check-/);
+  assert.match(chk.prompt, /git checkout --detach swarm\/demo\/T1/);
+});

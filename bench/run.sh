@@ -13,13 +13,14 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLAUDE_BIN="${BENCH_CLAUDE:-$(ls -d "$HOME/Library/Application Support/Claude/claude-code"/*/*/claude.app/Contents/MacOS/claude 2>/dev/null | sort -V | tail -1)}"
 CLAUDE_BIN="${CLAUDE_BIN:-claude}"
 FIXTURES="${BENCH_FIXTURES:-$ROOT/bench/fixtures}"
-WORKROOT="${BENCH_WORK:-$ROOT/bench/work}"
+# Work folders must live OUTSIDE the plugin dir: writes under a loaded plugin count as sensitive (E0).
+WORKROOT="${BENCH_WORK:-$HOME/.cache/claude-skills-bench/work}"
 RESULTS="${BENCH_RESULTS:-$ROOT/bench/results}"
 SUPERPOWERS_DIR="${SUPERPOWERS_DIR:-$HOME/.claude/plugins/cache/claude-plugins-official/superpowers/7.0.2}"
 PERMISSION_MODE="${BENCH_PERMISSION_MODE:-acceptEdits}"
 # Same tool allowance for every arm. Auto mode's classifier gives no verdict inside
 # workflow workers (E0), so runs use acceptEdits plus an explicit Bash allowlist.
-ALLOWED_TOOLS=(Workflow "Bash(git *)" "Bash(dotnet *)" "Bash(node *)" "Bash(cd *)" "Bash(ls *)" "Bash(cat *)" "Bash(mkdir *)" "Bash(find *)" "Bash(grep *)" "Bash(head *)" "Bash(tail *)" "Bash(wc *)" "Bash(rm -rf .build*)")
+ALLOWED_TOOLS=(Workflow "Bash(git *)" "Bash(dotnet *)" "Bash(node *)" "Bash(cd *)" "Bash(ls *)" "Bash(cat *)" "Bash(mkdir *)" "Bash(cp *)" "Bash(find *)" "Bash(grep *)" "Bash(head *)" "Bash(tail *)" "Bash(wc *)" "Bash(rm -rf .build*)")
 # Headless sessions have workflows off by default; every arm gets the same settings.
 RUN_SETTINGS="${BENCH_SETTINGS:-{\"enableWorkflows\":true,\"workflowSizeGuideline\":\"large\"}}"
 
@@ -66,6 +67,7 @@ START=$(now_ms)
     --model "$MODEL" \
     --output-format stream-json --verbose \
     --plugin-dir "$PLUGIN_DIR" \
+    --add-dir "$PLUGIN_DIR" \
     --setting-sources project,local \
     --permission-mode "$PERMISSION_MODE" \
     --allowedTools "${ALLOWED_TOOLS[@]}" \

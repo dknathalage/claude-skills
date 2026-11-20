@@ -1,0 +1,46 @@
+{
+  "exp": "E0",
+  "arm": "cs-sensitive",
+  "fixture": "f-small",
+  "rep": 1,
+  "wall_ms": 237548,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {},
+  "status": "ok",
+  "cost_usd": 1.34689205,
+  "model_cost_usd": {
+    "claude-opus-5-5": 1.3297076,
+    "claude-haiku-5-5": 0.017184449999999997
+  },
+  "tokens": {
+    "input": 4,
+    "output": 1105
+  },
+  "hidden": {
+    "passed": 0,
+    "failed": 10,
+    "build_failed": true
+  },
+  "review_score": 1,
+  "review_reasons": [
+    "The diff is empty, so nothing in the spec has been implemented.",
+    "None of the required API exists: TagNormalizer, TagError, TagValidator, RejectedTag, TagResult and TagService are all missing, and other code depends on these exact names.",
+    "No tests were added under tests/Tags.Tests.",
+    "There is nothing to judge for correctness or code quality, so the change cannot be accepted as a finished pull request."
+  ],
+  "judge_cost_usd": 0.0776906,
+  "session_id": "d325799d-b713-4f75-945f-a85246a0d70a",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 1,
+  "stuck": null,
+  "fix_rounds": null,
+  "note": "every write refused as sensitive: work dir nested inside the loaded plugin dir; cp not allowlisted"
+}

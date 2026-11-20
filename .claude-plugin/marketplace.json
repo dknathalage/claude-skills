@@ -1,11 +1,11 @@
 {
   "name": "claude-skills",
   "owner": {
-    "name": "Dinuka Nathalage"
+    "name": "dknathalage"
   },
   "plugins": [
     {
-      "name": "dk-skills",
+      "name": "claude-skills",
       "source": "./",
       "description": "Personal Claude Code skills bundle."
     }

@@ -34,6 +34,20 @@ Write two files in `docs/plans/`:
 - **Small tasks.** One to three files each. A task a worker cannot finish from its instructions alone is too big or too vague.
 - **Fast verify.** Each task's `verify` runs only its own tests (for example `dotnet test --filter FullyQualifiedName~FooTests`). The last task's verify may be the whole suite.
 - **Maximise the widest wave.** Prefer more independent tasks over long chains: workers run in parallel.
+- **Shared types live with their first owner.** A record or DTO that several later tasks use belongs in the earliest task's files, so the later tasks only read it. Give its exact definition in that task's instructions.
+- **Make parallel tasks testable alone.** Prefer units a worker can test directly (handlers, calculators, services) over tasks that only work once everything is wired. End-to-end wiring and its one integration test belong to the integration task.
+- **Read before you write.** Look at the project's layout, test style and project files first, so paths, namespaces and test commands match what is there. Project-file or package changes belong to one early task.
+
+## Example task
+
+```json
+{ "id": "T4", "title": "FeeCalculator", "depends_on": [],
+  "owns": ["src/Loans/FeeCalculator.cs", "tests/Loans.Tests/FeeCalculatorTests.cs"],
+  "reads": ["SPEC.md"],
+  "instructions": "1. In tests/Loans.Tests/FeeCalculatorTests.cs write xUnit tests for FeeCalculator.LateFee(dueOn, returnedOn) with due 2026-01-15 UTC: returned early → 0; due + 23h → 0; due + 5 days → 2.50; due + 45 days → 10.00.\n2. Run them and watch them fail.\n3. Create src/Loans/FeeCalculator.cs: public static class FeeCalculator { public const decimal PerDay = 0.50m; public const decimal Cap = 10.00m; public static decimal LateFee(DateTime dueOn, DateTime returnedOn) } — whole days late, rounded down, times PerDay, capped at Cap.\n4. Run the tests until they pass.",
+  "verify": "dotnet test --filter FullyQualifiedName~FeeCalculatorTests",
+  "done_when": ["FeeCalculatorTests pass", "only owned files changed"] }
+```
 
 ## Finish
 

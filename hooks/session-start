@@ -1,0 +1,28 @@
+#!/bin/bash
+# SessionStart hook: inject the using-claude-skills skill as session context.
+# Uses only bash builtins (no cat, dirname or subshells): SessionStart hooks can run with an empty PATH.
+set -uo pipefail
+
+case "$0" in
+  */*) SCRIPT_DIR="${0%/*}" ;;
+  *) SCRIPT_DIR="." ;;
+esac
+ROOT="${CLAUDE_PLUGIN_ROOT:-$SCRIPT_DIR/..}"
+
+body="(could not read using-claude-skills)"
+if [ -r "$ROOT/skills/using-claude-skills/SKILL.md" ]; then
+  IFS= read -r -d '' body < "$ROOT/skills/using-claude-skills/SKILL.md" || true
+  while [[ $body == *$'\n' ]]; do body="${body%$'\n'}"; done
+fi
+
+ctx="You have the claude-skills plugin. Its claude-skills:using-claude-skills skill is below; load any other claude-skills skill with the Skill tool when it applies.
+
+$body"
+
+ctx="${ctx//\\/\\\\}"
+ctx="${ctx//\"/\\\"}"
+ctx="${ctx//$'\n'/\\n}"
+ctx="${ctx//$'\r'/\\r}"
+ctx="${ctx//$'\t'/\\t}"
+
+printf '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"%s"}}\n' "$ctx"

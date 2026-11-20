@@ -29,7 +29,17 @@ Build a plan by running the swarm workflow. **This skill runs a Claude workflow;
    - Never re-run workers on a bigger model.
 7. **Report** in a few lines: branch, tasks passed/stuck/skipped, what you fixed after the workflow, and the final `verify_all` result.
 
+## Keep the session light
+
+The session model is most of a build's cost (benchmark: about 90%, Haiku about 10%). While the workflow runs, do not read the code it is writing, re-run its tests or narrate its progress. Act only on the summary it returns, and read files only for the problems it reports.
+
+## Small plans
+
+With 1–2 tasks, or a plan whose widest wave is 1, there is nothing to parallelise. In the benchmark, building inline was faster and cheaper there. Tell the user that in one line and offer to build inline with `claude-skills:test-driven-development`. When working unattended, build inline.
+
 ## Notes
 
-- A workflow runs at most min(16, CPU cores − 2) agents at once; extra tasks queue. Raise "Dynamic workflow size" in `/config` if Claude Code limits workflow size.
-- Workers only touch the files their task `owns`. If a task needs another file, the plan is wrong: fix the plan, do not widen the worker.
+- **Permissions.** Workers need to write files and run the project's build, test and git commands. In auto permission mode, file writes inside workflow workers have been refused ("classifier gave no verdict"). If workers report refused writes, ask the user to run the build in accept-edits mode with those commands allowed.
+- **Concurrency.** A workflow runs at most min(16, CPU cores − 2) agents at once, and extra tasks queue. `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` overrides that. Set the `workflowSizeGuideline` setting to `large` or `unrestricted` if Claude Code limits workflow size.
+- **Ownership.** Workers only touch the files their task `owns`. If a task needs another file, the plan is wrong: fix the plan, do not widen the worker.
+- **Branches.** Task work lands on `swarm/<topic>/<id>` branches and is merged into `build/<topic>`. Delete the `swarm/<topic>/*` branches after a clean build.

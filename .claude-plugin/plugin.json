@@ -1,7 +1,7 @@
 {
   "name": "claude-skills",
-  "version": "0.3.0",
-  "description": "Personal Claude Code skills bundle.",
+  "version": "0.6.0",
+  "description": "Spec, plan and a parallel Haiku-swarm build, plus TDD, debugging, verification, review and branch skills. Replaces superpowers.",
   "author": {
     "name": "dknathalage"
   },

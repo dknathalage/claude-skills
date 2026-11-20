@@ -1,6 +1,6 @@
 # claude-skills
 
-Personal [Claude Code](https://claude.com/claude-code) skills, packaged as a plugin marketplace so they can be installed and updated with `/plugin`.
+Personal [Claude Code](https://claude.com/claude-code) skills, packaged as a single plugin (`dk-skills`).
 
 ## Install
 
@@ -8,6 +8,8 @@ Personal [Claude Code](https://claude.com/claude-code) skills, packaged as a plu
 /plugin marketplace add dknathalage/claude-skills
 /plugin install dk-skills@claude-skills
 ```
+
+The small `marketplace.json` is only there because `/plugin` installs through a marketplace. It points at this repo root (`"source": "./"`).
 
 ## Update
 
@@ -23,23 +25,22 @@ Personal [Claude Code](https://claude.com/claude-code) skills, packaged as a plu
 
 ## Adding or changing a skill
 
-Skills live in `plugins/dk-skills/skills/<name>/SKILL.md`. Edit them there, or dump from `~/.claude/skills`:
+Skills live in `skills/<name>/SKILL.md`. Edit them there, or dump from `~/.claude/skills`:
 
 ```bash
 scripts/dump.sh                    # every skill in ~/.claude/skills
 scripts/dump.sh ~/some/skill-dir   # one skill
 ```
 
-The script bumps the plugin's patch version. Bump it by hand if you edit skills directly, because Claude Code uses the version to detect updates. Then commit, push, and run `/plugin marketplace update claude-skills`.
+The script bumps the patch version in `.claude-plugin/plugin.json`. Bump it by hand if you edit skills directly, because Claude Code uses the version to detect updates. Then commit, push, and run `/plugin marketplace update claude-skills`.
 
 ## Layout
 
 ```
-.claude-plugin/marketplace.json      marketplace manifest
-plugins/dk-skills/
-  .claude-plugin/plugin.json         plugin manifest (version lives here)
-  skills/<name>/SKILL.md             one directory per skill
-scripts/dump.sh                      copy skills in + bump version
+.claude-plugin/plugin.json        plugin manifest (version lives here)
+.claude-plugin/marketplace.json   one-entry pointer so /plugin can install it
+skills/<name>/SKILL.md            one directory per skill
+scripts/dump.sh                   copy skills in + bump version
 ```
 
 ## License

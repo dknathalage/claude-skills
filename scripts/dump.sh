@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Dump skills from ~/.claude/skills (or a given dir) into the dk-skills plugin
+# Dump skills from ~/.claude/skills (or a given dir) into this plugin
 # and bump its patch version so `/plugin marketplace update` picks up the change.
 #
 #   scripts/dump.sh                 # copy every skill in ~/.claude/skills
@@ -7,8 +7,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-DEST="$ROOT/plugins/dk-skills/skills"
-MANIFEST="$ROOT/plugins/dk-skills/.claude-plugin/plugin.json"
+DEST="$ROOT/skills"
+MANIFEST="$ROOT/.claude-plugin/plugin.json"
 
 if [ $# -gt 0 ]; then
   SOURCES=("$@")

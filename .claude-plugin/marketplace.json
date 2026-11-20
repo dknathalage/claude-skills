@@ -3,15 +3,11 @@
   "owner": {
     "name": "Dinuka Nathalage"
   },
-  "metadata": {
-    "description": "Personal Claude Code skills, installable and updatable via the plugin marketplace.",
-    "version": "0.1.0"
-  },
   "plugins": [
     {
       "name": "dk-skills",
-      "source": "./plugins/dk-skills",
-      "description": "Personal skills bundle (everything under plugins/dk-skills/skills/)."
+      "source": "./",
+      "description": "Personal Claude Code skills bundle."
     }
   ]
 }

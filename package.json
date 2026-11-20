@@ -1,0 +1,8 @@
+{
+  "name": "claude-skills",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test 'bench/test/*.test.mjs' && bash bench/test/run.test.sh"
+  }
+}

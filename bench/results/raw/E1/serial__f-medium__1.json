@@ -1,0 +1,49 @@
+{
+  "exp": "E1",
+  "arm": "serial",
+  "fixture": "f-medium",
+  "rep": 1,
+  "wall_ms": 795467,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {
+    "isolation": "worktree",
+    "check": true,
+    "serial": true
+  },
+  "status": "ok",
+  "cost_usd": 1.9950280549999984,
+  "model_cost_usd": {
+    "claude-opus-5-5": 1.8120889999999994,
+    "claude-haiku-5-5": 0.1829390550000001
+  },
+  "tokens": {
+    "input": 22,
+    "output": 7470
+  },
+  "hidden": {
+    "passed": 20,
+    "failed": 0
+  },
+  "review_score": 8,
+  "review_reasons": [
+    "The change matches the spec. Every type and handler has the exact name and signature the spec asks for, and every route returns the specified status codes and Location headers. The rules are implemented correctly: the 14-day due date, the limit of 3 active loans, one active loan per book, a fee of 0.50 per full day rounded down and capped at 10.00, and overdue meaning DueOn is strictly before now. All times come from the injected TimeProvider, never DateTime.UtcNow.",
+    "It goes sensibly beyond the spec. A UTC value converter fixes SQLite returning DateTimes with Kind=Unspecified, and an integration test checks that the JSON dates end in 'Z'. A filtered unique index enforces one active loan per book in the database, and losing a concurrent borrow race returns 409. Catching every DbUpdateException as 409 is broad, though, and could hide unrelated database errors.",
+    "The tests are thorough. There are unit tests for each handler and fee edge cases (23 hours late, 5 days 20 hours, capped at 45 days, due exactly now). Returned loans are shown not to count toward the limits. WebApplicationFactory tests with a FakeTimeProvider cover the full HTTP flow, the error codes and the Location headers.",
+    "Minor nits. TestDb never disposes its in-memory SqliteConnection. One test compares against DateTimeKind.Unspecified, which passes only because DateTime equality ignores Kind, so it is misleading. ReturnHandlerTests seeds loans for books and members that don't exist, which works only because there are no foreign keys.",
+    "The diff doesn't touch either csproj file. Unless the packages are already referenced, the build will fail: EF Core Sqlite in the API project, and Mvc.Testing and TimeProvider.Testing in the test project."
+  ],
+  "judge_cost_usd": 0.2526986,
+  "session_id": "0810917d-0c01-4107-9f1f-a8a548dc5dce",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 1,
+  "stuck": null,
+  "fix_rounds": null
+}

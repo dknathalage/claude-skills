@@ -1,0 +1,49 @@
+{
+  "exp": "E1",
+  "arm": "swarm",
+  "fixture": "f-medium",
+  "rep": 1,
+  "wall_ms": 518783,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {
+    "isolation": "worktree",
+    "check": true,
+    "serial": false
+  },
+  "status": "ok",
+  "cost_usd": 1.8518530950000003,
+  "model_cost_usd": {
+    "claude-opus-5-5": 1.6569939999999999,
+    "claude-haiku-5-5": 0.1948590950000001
+  },
+  "tokens": {
+    "input": 20,
+    "output": 6331
+  },
+  "hidden": {
+    "passed": 20,
+    "failed": 0
+  },
+  "review_score": 8,
+  "review_reasons": [
+    "The change covers the whole spec. Type and member names match the required code shape exactly. Routes, status codes, the Location headers, the 14-day due date, the 3-loan limit, and fee rounding down to whole days with the 10.00 cap are all correct. Every time comes from the injected TimeProvider, and Program.cs keeps /health and `public partial class Program`.",
+    "Two additions go beyond the spec and help. A filtered unique index on BookId where ReturnedOn is null lets the database enforce one active loan per book. A UTC value converter fixes SQLite returning DateTimes with an unspecified kind, and a test covers it.",
+    "Tests are strong. They cover each handler's success and error paths, fee edge cases (on time, exactly due, 23 hours late, a fractional day, the cap), overdue boundaries (due exactly now, due in the future, already returned), and a full end-to-end HTTP flow using a fake clock and a temporary SQLite file.",
+    "Small issues: the Borrow handler maps any DbUpdateException to 409, which could hide unrelated database failures. The 3-loan limit has the same check-then-insert race that the book index guards against, but nothing protects it. No test drives that conflict catch path in the handler.",
+    "Test hygiene nits: TestDb never disposes the SqliteConnection it opens. OverdueHandlerTests use a static Interlocked counter for book ids, and some seeded loans point at books and members that don't exist. This only works because no foreign keys are defined."
+  ],
+  "judge_cost_usd": 0.2440346,
+  "session_id": "e9b94f6d-b5fa-4447-a34f-45f666f31927",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 1,
+  "stuck": null,
+  "fix_rounds": null
+}

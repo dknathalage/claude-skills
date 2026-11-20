@@ -1,0 +1,49 @@
+{
+  "exp": "E1",
+  "arm": "swarm",
+  "fixture": "f-medium",
+  "rep": 3,
+  "wall_ms": 400741,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {
+    "isolation": "worktree",
+    "check": true,
+    "serial": false
+  },
+  "status": "ok",
+  "cost_usd": 1.4753992099999997,
+  "model_cost_usd": {
+    "claude-opus-5-5": 1.3237217999999997,
+    "claude-haiku-5-5": 0.15167740999999998
+  },
+  "tokens": {
+    "input": 26,
+    "output": 8515
+  },
+  "hidden": {
+    "passed": 20,
+    "failed": 0
+  },
+  "review_score": 8,
+  "review_reasons": [
+    "Meets the spec in full: every type and handler uses the exact name and signature the spec gives. Routes, status codes, Location headers, ordering, the 14-day due date, the 3-loan limit, floored late fees with the 10.00 cap, and the strict `DueOn < now` overdue check are all correct. Time comes only from the injected TimeProvider.",
+    "Goes beyond the spec in useful ways. A UTC value converter makes dates read back as UTC and serialize with a 'Z'. A filtered unique index (`ReturnedOn IS NULL`) lets the database enforce 'one active loan per book'.",
+    "The borrow race is only half handled. The checks run inside a transaction, but a concurrent insert that hits the unique index would throw DbUpdateException and come back as a 500, not the 409 the spec requires. Nothing stops two concurrent returns, and the member's 3-loan limit has no database-level guard.",
+    "The handler tests are thorough: blank and whitespace input, 404/409 paths, a returned loan not blocking the book or counting toward the limit, fee boundaries (23h, 5d20h, cap), and overdue edge cases (due exactly now, in the future, already returned). The tests use real in-memory SQLite, not the EF in-memory provider.",
+    "HTTP-level coverage is thin. A single WebApplicationFactory test covers the happy path, but no test checks the 400/404/409 errors or the list ordering through the real routes and model binding. There is also some minor noise, such as unneeded `using Microsoft.AspNetCore.Http` lines."
+  ],
+  "judge_cost_usd": 0.2476986,
+  "session_id": "6faa3856-e265-48ae-997a-3b93d1e34791",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 0,
+  "stuck": null,
+  "fix_rounds": null
+}

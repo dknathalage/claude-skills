@@ -1,0 +1,44 @@
+{
+  "exp": "E1",
+  "arm": "superpowers",
+  "fixture": "f-medium",
+  "rep": 3,
+  "wall_ms": 780411,
+  "plugin": "superpowers",
+  "session_model": "claude-opus-5-5",
+  "args": {},
+  "status": "ok",
+  "cost_usd": 4.761411699999999,
+  "model_cost_usd": {
+    "claude-opus-5-5": 2.7373350000000003,
+    "claude-sonnet-5-5": 2.0240767
+  },
+  "tokens": {
+    "input": 80,
+    "output": 33667
+  },
+  "hidden": {
+    "passed": 20,
+    "failed": 0
+  },
+  "review_score": 9,
+  "review_reasons": [
+    "The change meets the spec: the type and member names match exactly, the routes and status codes match the table, and the 14-day loan, 3-loan limit, rounded-down fee with its 10.00 cap, and the strict `DueOn < now` overdue check are all right. Every time comes from the injected TimeProvider.",
+    "It handles a SQLite problem the spec doesn't mention. Value converters mark DateTimes read back from the database as UTC, so the JSON ends in 'Z' and DueOn/ReturnedOn compare correctly. A filtered unique index allows only one active loan per book, and the DbUpdateException catch returns 409 when two borrows race for the same book.",
+    "The tests are strong. Each handler has unit tests on in-memory SQLite covering every 404, 409 and 400 path, the edge cases at the due time and the fee cap, and returned loans being excluded. There are also round-trip tests that times come back as UTC, and an end-to-end WebApplicationFactory test that swaps in a fake clock and a temporary database file.",
+    "Minor gaps: the 3-loan limit has no protection against concurrent borrows, unlike the book limit. TestDb.Create never disposes the SqliteConnection it opens. The 400 responses have no body explaining the error. The HTTP-level test covers only the happy path."
+  ],
+  "judge_cost_usd": 0.2351026,
+  "session_id": "982fa141-42dd-401c-9093-abcd06bdb7bf",
+  "plugins_loaded": [
+    "superpowers",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 24,
+  "stuck": null,
+  "fix_rounds": null
+}

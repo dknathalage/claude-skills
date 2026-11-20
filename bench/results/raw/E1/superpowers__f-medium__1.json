@@ -1,0 +1,46 @@
+{
+  "exp": "E1",
+  "arm": "superpowers",
+  "fixture": "f-medium",
+  "rep": 1,
+  "wall_ms": 694903,
+  "plugin": "superpowers",
+  "session_model": "claude-opus-5-5",
+  "args": {},
+  "status": "ok",
+  "cost_usd": 3.8831220049999997,
+  "model_cost_usd": {
+    "claude-opus-5-5": 2.2332609999999997,
+    "claude-sonnet-5-5": 1.6365338,
+    "claude-haiku-5-5": 0.013327205
+  },
+  "tokens": {
+    "input": 80,
+    "output": 25271
+  },
+  "hidden": {
+    "passed": 20,
+    "failed": 0
+  },
+  "review_score": 8,
+  "review_reasons": [
+    "The change meets the whole spec. Every type, namespace, constant and handler signature matches exactly. The routes, status codes and Location headers are correct. The connection string and its default, `EnsureCreated`, and the `TimeProvider` setup are wired as specified. `DateTime.UtcNow` is never called.",
+    "The business rules are right. `DueOn` is `BorrowedOn` + 14 days. The fee is whole days late rounded down, times 0.50, capped at 10. Overdue uses a strict `DueOn < now` and is ordered by `DueOn`. Active loans are those with `ReturnedOn == null`. The UTC value converter is a good, non-obvious fix: SQLite reads `DateTime` back with Kind=Unspecified, and this keeps the returned times UTC.",
+    "Tests are strong. The unit tests cover fee boundaries (exactly due, 23 hours late, round-down, at the cap and past it), the 2-vs-3 active-loan limit, returned loans not counting, and overdue edge cases (due exactly now, due in the future, already returned). They run on real in-memory SQLite. One end-to-end test uses `WebApplicationFactory` with a fake clock and a temp database file.",
+    "Minor gap: the borrow checks and the insert are separate steps with no transaction or unique constraint. Two concurrent requests could both pass the checks and double-lend a book or exceed the 3-loan limit. The spec doesn't require handling this, but a reviewer would likely flag it.",
+    "Minor nits. `TestDb` opens a `SqliteConnection` and never disposes it. The 409/404/400 responses have no body. The HTTP-level 404 and 409 paths are only tested at the handler level."
+  ],
+  "judge_cost_usd": 0.22719860000000003,
+  "session_id": "ca79fa06-e695-4ff0-8b01-d57358550432",
+  "plugins_loaded": [
+    "superpowers",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 27,
+  "stuck": null,
+  "fix_rounds": null
+}

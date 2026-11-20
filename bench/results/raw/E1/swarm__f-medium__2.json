@@ -1,0 +1,49 @@
+{
+  "exp": "E1",
+  "arm": "swarm",
+  "fixture": "f-medium",
+  "rep": 2,
+  "wall_ms": 342950,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {
+    "isolation": "worktree",
+    "check": true,
+    "serial": false
+  },
+  "status": "ok",
+  "cost_usd": 1.2967567000000002,
+  "model_cost_usd": {
+    "claude-opus-5-5": 1.1164164000000003,
+    "claude-haiku-5-5": 0.18034030000000012
+  },
+  "tokens": {
+    "input": 16,
+    "output": 5209
+  },
+  "hidden": {
+    "passed": 20,
+    "failed": 0
+  },
+  "review_score": 8,
+  "review_reasons": [
+    "The change meets the spec: type and member names match exactly, all routes are wired up, and the status codes are right (400, 404, 409, 201 with Location, 200). Loans last 14 days, the fee is floored, capped and zero when on time, and overdue uses a strict `DueOn < now` ordered by `dueOn`. All times come from `TimeProvider`, and startup reads the connection string with its default and calls `EnsureCreated`.",
+    "The UTC value converter in `ConfigureConventions` is a careful touch. SQLite loses `DateTimeKind`, and the integration test checks that stored times still serialize with a 'Z' suffix.",
+    "Unit tests are thorough at the handler level. They cover each borrow conflict and not-found case, returned loans not counting toward the limits, fee edges (on time, 23 hours late, a fractional day, the cap), and overdue edges (due exactly now, returned, future). One end-to-end `WebApplicationFactory` test swaps in a fake clock.",
+    "The 3-loan limit and one-active-loan-per-book rule are enforced only by check-then-insert, with no transaction or unique index. Two concurrent requests could both get through.",
+    "Minor test issues: no HTTP-level tests for 400, 404 or 409 on the borrow route; `TestDb` opens SQLite connections and never disposes them; and the tests mix `using` and `await using`, while only some files add the redundant `Microsoft.AspNetCore.Http` using."
+  ],
+  "judge_cost_usd": 0.2314266,
+  "session_id": "c40272f3-fb43-4ad9-a219-812f176af3f9",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 0,
+  "stuck": null,
+  "fix_rounds": null
+}

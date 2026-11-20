@@ -33,3 +33,11 @@ assert.ok(r.wall_ms < 20000, `wall ${r.wall_ms}`);
 assert.deepEqual(r.hidden, { passed: 5, failed: 3 });
 console.log("ok runner_records_timeout");
 ' "$TMP/results/raw/ET/slow__f-test__1.json"
+
+# runner_leaves_no_watchdog_behind: the run must not leave a sleeping watchdog holding stdout.
+S=$(node -e 'console.log(Date.now())')
+"$ROOT/bench/run.sh" --exp ET --arm quick --fixture f-test --rep 1 --budget 1 --timeout-min 30 | cat >/dev/null
+E=$(node -e 'console.log(Date.now())')
+[ $((E - S)) -lt 20000 ] || { echo "FAIL runner_leaves_no_watchdog_behind: piped run took $((E - S)) ms"; exit 1; }
+! pgrep -f "sleep 1800$" >/dev/null || { echo "FAIL runner_leaves_no_watchdog_behind: orphan sleep 1800"; pkill -f "sleep 1800$"; exit 1; }
+echo "ok runner_leaves_no_watchdog_behind"

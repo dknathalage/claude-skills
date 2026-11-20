@@ -1,0 +1,49 @@
+{
+  "exp": "E1",
+  "arm": "serial",
+  "fixture": "f-medium",
+  "rep": 3,
+  "wall_ms": 569834,
+  "plugin": "claude-skills",
+  "session_model": "claude-opus-5-5",
+  "args": {
+    "isolation": "worktree",
+    "check": true,
+    "serial": true
+  },
+  "status": "ok",
+  "cost_usd": 1.44145898,
+  "model_cost_usd": {
+    "claude-opus-5-5": 1.2994480000000002,
+    "claude-haiku-5-5": 0.14201098000000006
+  },
+  "tokens": {
+    "input": 24,
+    "output": 8036
+  },
+  "hidden": {
+    "passed": 20,
+    "failed": 0
+  },
+  "review_score": 9,
+  "review_reasons": [
+    "The change meets every spec rule. Type names and signatures match, routes map to the named handlers, and status codes are right (201 with Location, 400, 404, 409, 200). Time always comes from TimeProvider, with no DateTime.UtcNow.",
+    "The fee rule is correct: whole days are rounded down, early or on-time returns cost 0, and the fee is capped at 10.00. Overdue uses a strict DueOn < now check and orders by dueOn. The UTC value converter stops SQLite returning Unspecified-kind dates, and an HTTP test checks that the 'Z' suffix survives the round trip.",
+    "It goes beyond the spec in a useful way: a filtered unique index enforces one active loan per book, and DbUpdateException is turned into 409. The 3-loan member limit has no matching guard, so two concurrent borrows can push a member past it. That is a small gap.",
+    "Tests are thorough. They cover every handler branch, the fee edges (23 hours, 5 days 20 hours, the cap), overdue at exactly now, returned loans not counting toward the limits, and the database constraint. There is also an end-to-end WebApplicationFactory test with a fake clock and an isolated SQLite file.",
+    "Small nits. Usings are inconsistent: some files add Xunit and AspNetCore.Http explicitly and others rely on implicit usings. Some test seeds add loans with no matching book or member rows, which only works because no foreign keys are configured. There is no boundary test for exactly 1 day late or for exactly 20 days, where the fee first reaches the cap."
+  ],
+  "judge_cost_usd": 0.24817060000000002,
+  "session_id": "e1bf91a1-899f-4514-aa0f-520ceb83b4a1",
+  "plugins_loaded": [
+    "claude-skills",
+    "cc-plugin-agents-md",
+    "cc-plugin-telemetry",
+    "cc-plugin-privacy",
+    "cc-plugin-plugin-authoring",
+    "cc-plugin-easel"
+  ],
+  "permission_denials": 0,
+  "stuck": null,
+  "fix_rounds": null
+}

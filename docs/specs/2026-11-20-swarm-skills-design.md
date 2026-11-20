@@ -23,7 +23,7 @@ Each design choice is tested with small A/B experiments while it is built. The f
 
 ## Non-goals
 
-- Changing how brainstorming feels. It stays a short conversation on the strong model.
+- Changing how spec creation feels. The `spec` skill stays a short conversation on the strong model, like superpowers brainstorming.
 - Supporting harnesses other than Claude Code, such as Codex or Kimi. Superpowers does; claude-skills does not.
 - Enforcing Haiku outside workflows through env vars or hooks.
 
@@ -61,7 +61,7 @@ All skills live in `skills/` of the `claude-skills` plugin. Ports are rewrites i
 | claude-skills skill | Replaces (superpowers) | Tier | Notes |
 |---|---|---|---|
 | `using-claude-skills` | using-superpowers | session | Short bootstrap: what exists, when each fires. Loaded at session start through a SessionStart hook. Hooks are allowed in plugins; to be confirmed in E0. |
-| `brainstorming` | brainstorming | session | Same shape, leaner. Ends by handing off to `plan`. |
+| `spec` | brainstorming | session | **Spec creation.** A short conversation to find what the user wants and why. Lays out 2–3 approaches and gets a pick, then writes the design spec to `docs/specs/YYYY-MM-DD-<topic>-design.md`. One fresh builder-check subagent finds open questions, and the user approves. Hands off to `plan`. Same shape as superpowers brainstorming, leaner. |
 | `plan` | writing-plans | session | Writes the **task graph** (below). Checks file ownership before handing off. |
 | `build` | subagent-driven-development, executing-plans, dispatching-parallel-agents | session drives a Haiku workflow | Runs the swarm workflow. The only build path. |
 | `systematic-debugging` | systematic-debugging | session | Diagnosis on the strong model. A fix can become a one-task graph handed to `build`. |

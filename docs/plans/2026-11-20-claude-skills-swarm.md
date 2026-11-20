@@ -245,7 +245,7 @@
 ### Task 10: Remaining skills and the session-start hook
 
 **Files:**
-- Create `skills/{using-claude-skills,brainstorming,systematic-debugging,verification-before-completion,code-review,worktrees,finish-branch,writing-skills}/SKILL.md`.
+- Create `skills/{using-claude-skills,spec,systematic-debugging,verification-before-completion,code-review,worktrees,finish-branch,writing-skills}/SKILL.md`.
 - Create `hooks/hooks.json` and `hooks/session-start`, modelled on superpowers 7.0.2's `hooks/`, unix only. They print `using-claude-skills` as additional context.
 - Add a `NOTICE` with the superpowers MIT copyright.
 
@@ -253,7 +253,7 @@
 
   | Skill | Max words |
   |---|---|
-  | brainstorming | 1,200 |
+  | spec (spec creation, replaces brainstorming) | 1,200 |
   | systematic-debugging | 900 |
   | code-review | 800 |
   | verification | 400 |
@@ -262,11 +262,18 @@
   | writing-skills | 600 |
   | using-claude-skills | 400 |
 
-  - Brainstorming ends by handing off to `plan`.
+  - `spec` covers what superpowers brainstorming did:
+    - asks open questions only where the answer changes what gets built
+    - lays out 2–3 approaches and gets the user's pick
+    - writes `docs/specs/YYYY-MM-DD-<topic>-design.md` with intent, goals, non-goals, anti-goals, constraints, approaches, decided, and left to the builder
+    - runs one builder-check subagent on the session model
+    - gets the user's approval, then hands off to `plan`
+    - unattended, it takes the recommended option at each choice and writes the spec without asking
   - Debugging hands a fix to `plan` and `build` as a one-task graph.
   - `writing-skills` covers this repo's layout and the version bump.
 - [ ] **Step 2:** `wc -w skills/*/SKILL.md | tail -1`. Expected: at most 8,000.
-- [ ] **Step 3: Check that skills trigger.** First confirm the SessionStart hook loads: the `init` or first system event shows the `using-claude-skills` context. Then, in each of 3 headless runs (`--budget 1`, F-small copy), give a prompt that should trigger brainstorming, debugging or verification. Check the transcript for the matching `Skill` call. Fix descriptions that don't fire.
+- [ ] **Step 3: Check that skills trigger.** First confirm the SessionStart hook loads: the `init` or first system event shows the `using-claude-skills` context. Then, in each of 3 headless runs (`--budget 1`, F-small copy), give a prompt that should trigger spec, debugging or verification.
+  - For `spec`, a fourth run gives a short feature request plus "you are unattended". Pass = a `docs/specs/*-design.md` exists with every required section, and the session handed off to `plan`. Check the transcript for the matching `Skill` call. Fix descriptions that don't fire.
 - [ ] **Step 4:** `claude plugin validate .`, bump the version to `0.6.0`, and commit.
 
 ## Phase 5: head to head

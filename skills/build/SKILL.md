@@ -11,7 +11,9 @@ Build a plan by running the swarm workflow. **This skill runs a Claude workflow;
 
 1. **Find the plan.** Use the plan the user named, else the newest `docs/plans/*.json`. Its topic is the file name without date and extension (for example `2026-11-20-loans.json` → `loans`).
 2. **Validate it.** Run `node <this skill's base directory>/../plan/validate-graph.mjs <plan.json>`. On `ok:false`, stop and fix the plan (use `claude-skills:plan`); never build an invalid graph. Keep the `waves` it prints.
-3. **Pick options.** Use any build options the user gave, else the defaults: `{"isolation":"worktree","check":true,"serial":false}`.
+3. **Pick options.** Use any build options the user gave, else the defaults: `{"isolation":"worktree","check":true,"serial":false}`. Optional limits:
+   - `timeouts`: minutes per agent, default `{"implement_min":20,"check_min":10,"integrate_min":20,"review_min":20}`. A worker that runs past its limit is abandoned, and its task becomes `stuck` with `timed_out: true` (no retry, since a timeout usually means the task is too big).
+   - `deadline_min`: the whole build, default 120. After it passes, no new task starts; tasks not yet started become `skipped`, and the result says `deadline_hit: true`.
 4. **Create the feature branch.** Commit or stash nothing of the user's. If the working tree is dirty with unrelated changes, stop and say so. Otherwise `git checkout -b build/<topic>` from the plan's `base_branch` (or check it out if it exists).
 5. **Run the workflow.**
    - If the Workflow tool is not available (not listed and not found with ToolSearch `select:Workflow`), stop and tell the user to enable workflows (`"enableWorkflows": true` in Claude Code settings). Do not build the tasks yourself instead: that silently drops the parallel Haiku build the user chose.
@@ -21,7 +23,7 @@ Build a plan by running the swarm workflow. **This skill runs a Claude workflow;
    Wait for its completion notification. Do not poll it and do not build tasks yourself meanwhile.
 6. **Act on the result.**
    - All tasks `pass`, integrate `ok`, no critical or important findings: done. Report the branch and the totals.
-   - Tasks `stuck` or `skipped`: read each stuck task's `problems`. If the task was underspecified, fix that task in the plan and run the workflow again with a graph of only the unfinished tasks (re-validate first). If it is a small fix, do it yourself and run its `verify`.
+   - Tasks `stuck` or `skipped`: read each stuck task's `problems`. A `timed_out` task is too big: split it in the plan before re-running. If the task was underspecified, fix that task in the plan and run the workflow again with a graph of only the unfinished tasks (re-validate first). If it is a small fix, do it yourself and run its `verify`.
    - Integrate not `ok`: resolve the listed conflicts or failing tests yourself, then run the plan's `verify_all`.
    - Review findings graded critical or important: fix them, each with a test that fails first, then run `verify_all`.
    - Never re-run workers on a bigger model.

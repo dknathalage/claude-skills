@@ -18,6 +18,20 @@ const isolation = mode.isolation === 'shared' ? 'shared' : 'worktree'
 const doCheck = mode.check !== false
 const serial = mode.serial === true
 const MAX_FIX_ROUNDS = 2
+// Timeouts (minutes). A workflow cannot cancel an agent, so on timeout the script stops
+// waiting, records the task as stuck, and moves on. Defaults are generous; they catch hangs.
+const TIMEOUTS = { implement_min: 20, check_min: 10, integrate_min: 20, review_min: 20, ...(mode.timeouts || {}) }
+const DEADLINE_MIN = typeof mode.deadline_min === 'number' ? mode.deadline_min : 120
+const timers = new Set()
+const TIMED_OUT = { timed_out: true }
+function withTimeout(promise, minutes) {
+  let handle
+  const timer = new Promise(resolve => { handle = setTimeout(() => resolve(TIMED_OUT), minutes * 60000); timers.add(handle) })
+  return Promise.race([promise, timer]).finally(() => { clearTimeout(handle); timers.delete(handle) })
+}
+let deadlineHit = false
+const deadlineHandle = setTimeout(() => { deadlineHit = true; log(`build deadline of ${DEADLINE_MIN} min reached: no new tasks will start`) }, DEADLINE_MIN * 60000)
+timers.add(deadlineHandle)
 const WORKER = { model: 'haiku', effort: 'low' }
 const FEATURE = `build/${topic}`
 const branchOf = id => `swarm/${topic}/${id}`  // never nested under FEATURE: git cannot hold build/x and build/x/T1
@@ -201,21 +215,29 @@ async function runTask(id) {
     results.set(id, r)
     return r
   }
+  if (deadlineHit) {
+    const r = { id, title: t.title, status: 'skipped', fix_rounds: 0, files_changed: [], reason: `build deadline of ${DEADLINE_MIN} min reached` }
+    results.set(id, r)
+    return r
+  }
   let problems = []
   let impl = null
   let round = 0
+  let timedOut = false
   for (; round <= MAX_FIX_ROUNDS; round++) {
-    impl = await agent(implementPrompt(t, problems, round), {
+    impl = await withTimeout(agent(implementPrompt(t, problems, round), {
       ...WORKER, label: `implement:${id}`, phase: 'Build', schema: IMPLEMENT_SCHEMA,
       ...(isolation === 'worktree' ? { isolation: 'worktree' } : {}),
-    })
+    }), TIMEOUTS.implement_min)
+    if (impl === TIMED_OUT) { timedOut = true; problems = [`implement timed out after ${TIMEOUTS.implement_min} min: the task is probably too big for one worker; split it`]; impl = null; break }
     if (!impl) { problems = ['the worker crashed or returned nothing; start again']; continue }
     if (impl.status === 'blocked') { problems = [`worker reported blocked: ${impl.notes}`]; continue }
     if (doCheck) {
-      const chk = await agent(checkPrompt(t, impl), {
+      const chk = await withTimeout(agent(checkPrompt(t, impl), {
         ...WORKER, label: `check:${id}`, phase: 'Build', schema: CHECK_SCHEMA,
         ...(isolation === 'worktree' ? { isolation: 'worktree' } : {}),
-      })
+      }), TIMEOUTS.check_min)
+      if (chk === TIMED_OUT) { timedOut = true; problems = [`check timed out after ${TIMEOUTS.check_min} min`]; break }
       if (chk && chk.pass) break
       problems = chk ? chk.problems : ['the checker crashed; re-run verify and report honestly']
     } else {
@@ -223,8 +245,8 @@ async function runTask(id) {
       problems = [`verify did not pass:\n${impl.verify_tail}`]
     }
   }
-  const pass = round <= MAX_FIX_ROUNDS
-  const r = { id, title: t.title, status: pass ? 'pass' : 'stuck', fix_rounds: Math.min(round, MAX_FIX_ROUNDS), files_changed: impl ? impl.files_changed : [], problems: pass ? [] : problems }
+  const pass = !timedOut && round <= MAX_FIX_ROUNDS
+  const r = { id, title: t.title, status: pass ? 'pass' : 'stuck', fix_rounds: Math.min(round, MAX_FIX_ROUNDS), files_changed: impl ? impl.files_changed : [], problems: pass ? [] : problems, ...(timedOut ? { timed_out: true } : {}) }
   results.set(id, r)
   log(`${id} ${r.status}${r.fix_rounds ? ` after ${r.fix_rounds} fix round(s)` : ''}`)
   return r
@@ -248,15 +270,21 @@ const summary = order.map(id => results.get(id))
 const passed = summary.filter(t => t.status === 'pass').map(t => t.id)
 
 phase('Integrate')
-const integrate = passed.length
-  ? (await agent(integratePrompt(passed), { ...WORKER, label: 'integrate', phase: 'Integrate', schema: INTEGRATE_SCHEMA }))
-    || { ok: false, conflicts: ['integrate agent returned nothing'], verify_all_passed: false, verify_all_tail: '' }
+let integrate = passed.length
+  ? await withTimeout(agent(integratePrompt(passed), { ...WORKER, label: 'integrate', phase: 'Integrate', schema: INTEGRATE_SCHEMA }), TIMEOUTS.integrate_min)
   : { ok: false, conflicts: ['no task passed'], verify_all_passed: false, verify_all_tail: '' }
+if (integrate === TIMED_OUT) integrate = { ok: false, conflicts: [`integrate timed out after ${TIMEOUTS.integrate_min} min`], verify_all_passed: false, verify_all_tail: '', timed_out: true }
+if (!integrate) integrate = { ok: false, conflicts: ['integrate agent returned nothing'], verify_all_passed: false, verify_all_tail: '' }
 
 phase('Review')
-const review = passed.length
-  ? (await agent(reviewPrompt(summary), { label: 'review', phase: 'Review', schema: REVIEW_SCHEMA })) || { findings: [] }
+let review = passed.length
+  ? await withTimeout(agent(reviewPrompt(summary), { label: 'review', phase: 'Review', schema: REVIEW_SCHEMA }), TIMEOUTS.review_min)
   : { findings: [] }
+if (review === TIMED_OUT) review = { findings: [], timed_out: true }
+if (!review) review = { findings: [] }
+
+for (const h of timers) clearTimeout(h)
+timers.clear()
 
 const count = s => summary.filter(t => t.status === s).length
 return {
@@ -265,4 +293,5 @@ return {
   integrate,
   review,
   totals: { tasks: summary.length, passed: count('pass'), stuck: count('stuck'), skipped: count('skipped') },
+  deadline_hit: deadlineHit,
 }

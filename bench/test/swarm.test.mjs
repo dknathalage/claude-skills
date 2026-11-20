@@ -144,3 +144,51 @@ test('worktree_check_runs_in_its_own_worktree_inside_project', async () => {
   assert.doesNotMatch(chk.prompt, /\.\.\/check-/);
   assert.match(chk.prompt, /git checkout --detach swarm\/demo\/T1/);
 });
+
+// ---- timeouts ----
+const never = () => new Promise(() => {});
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const T = { implement_min: 0.001, check_min: 0.001, integrate_min: 0.001, review_min: 0.001 }; // 60 ms
+
+test('implement_timeout_marks_task_stuck_without_retry', async () => {
+  const fake = happy({ implement: async (p, o) => (id(o) === 'T1' ? never() : undefined) });
+  const { result, calls } = await runWorkflow(SCRIPT, argsFor([task('T1'), task('T2')], { timeouts: T }), fake);
+  const t1 = result.tasks.find(t => t.id === 'T1');
+  assert.equal(t1.status, 'stuck');
+  assert.equal(t1.timed_out, true);
+  assert.equal(count(calls, 'implement', 'T1'), 1);
+  assert.equal(result.tasks.find(t => t.id === 'T2').status, 'pass');
+});
+
+test('check_timeout_marks_task_stuck', async () => {
+  const fake = happy({ check: async () => never() });
+  const { result } = await runWorkflow(SCRIPT, argsFor([task('T1')], { timeouts: T }), fake);
+  assert.equal(result.tasks[0].status, 'stuck');
+  assert.equal(result.tasks[0].timed_out, true);
+});
+
+test('integrate_and_review_timeouts_still_return_summary', async () => {
+  const fake = happy({ integrate: async () => never(), review: async () => never() });
+  const { result } = await runWorkflow(SCRIPT, argsFor([task('T1')], { timeouts: T }), fake);
+  assert.equal(result.integrate.ok, false);
+  assert.match(result.integrate.conflicts.join(' '), /timed out/);
+  assert.equal(result.review.timed_out, true);
+});
+
+test('deadline_stops_starting_new_tasks', async () => {
+  const fake = happy({ implement: async (p, o) => { if (id(o) === 'T1') await sleep(120); return undefined; } });
+  const { result, calls } = await runWorkflow(SCRIPT, argsFor([task('T1'), task('T2', ['T1'])], { deadline_min: 0.001 }), fake);
+  const st = Object.fromEntries(result.tasks.map(t => [t.id, t.status]));
+  assert.equal(st.T1, 'pass');
+  assert.equal(st.T2, 'skipped');
+  assert.match(result.tasks.find(t => t.id === 'T2').reason, /deadline/);
+  assert.equal(count(calls, 'implement', 'T2'), 0);
+  assert.equal(result.deadline_hit, true);
+});
+
+test('timers_do_not_outlive_the_workflow', async () => {
+  // Default timeouts are many minutes; the workflow must clear its timers or this file never exits.
+  const started = process.hrtime.bigint();
+  await runWorkflow(SCRIPT, argsFor([task('T1')]), happy());
+  assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 2000);
+});

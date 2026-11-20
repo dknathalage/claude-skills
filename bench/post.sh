@@ -35,8 +35,9 @@ if [ -n "${REJUDGE:-}" ] || ! node -e 'JSON.parse(require("fs").readFileSync(pro
   "$ROOT/bench/judge.sh" "$REPO/SPEC.md" "$WORK/diff.patch" > "$WORK/judge.json" 2>> "$WORK/stderr.log"
 fi
 
-BASE_ROW=$(node -e 'console.log(JSON.stringify({exp:process.argv[1],arm:process.argv[2],fixture:process.argv[3],rep:Number(process.argv[4]),wall_ms:Number(process.argv[5]),plugin:process.argv[6],session_model:process.argv[7],args:JSON.parse(process.argv[8])}))' \
-  "$EXP" "$ARM" "$FIXTURE" "$REP" "$WALL" "$PLUGIN" "$MODEL" "$ARGS_JSON")
+TIMED_OUT=false; [ -f "$WORK/timed_out" ] && TIMED_OUT=true
+BASE_ROW=$(node -e 'console.log(JSON.stringify({exp:process.argv[1],arm:process.argv[2],fixture:process.argv[3],rep:Number(process.argv[4]),wall_ms:Number(process.argv[5]),plugin:process.argv[6],session_model:process.argv[7],args:JSON.parse(process.argv[8]),timed_out:process.argv[9]==="true"}))' \
+  "$EXP" "$ARM" "$FIXTURE" "$REP" "$WALL" "$PLUGIN" "$MODEL" "$ARGS_JSON" "$TIMED_OUT")
 node "$ROOT/bench/lib/parse-run.mjs" "$WORK/transcript.jsonl" "$WORK/hidden.log" "$WORK/judge.json" "$FIX/meta.json" "$BASE_ROW" \
   > "$RESULTS/raw/$EXP/$NAME.json"
 echo "$RESULTS/raw/$EXP/$NAME.json"

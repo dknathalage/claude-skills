@@ -22,3 +22,14 @@ assert.deepEqual(r.model_cost_usd, { "claude-haiku-4-5": 1.0 });
 assert.deepEqual(r.plugins_loaded, ["claude-skills"]);
 console.log("ok runner_records_capped_run");
 ' "$ROW"
+
+# runner_records_timeout: a session past its wall-clock limit is killed and recorded as timeout.
+STUB_SLEEP=30 "$ROOT/bench/run.sh" --exp ET --arm slow --fixture f-test --rep 1 --budget 1 --timeout-min 0.05 >/dev/null
+node -e '
+const r = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+const assert = require("assert/strict");
+assert.equal(r.status, "timeout");
+assert.ok(r.wall_ms < 20000, `wall ${r.wall_ms}`);
+assert.deepEqual(r.hidden, { passed: 5, failed: 3 });
+console.log("ok runner_records_timeout");
+' "$TMP/results/raw/ET/slow__f-test__1.json"

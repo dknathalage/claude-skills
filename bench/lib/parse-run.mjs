@@ -16,7 +16,8 @@ const lastText = [...events].reverse()
   .flatMap(e => (e.message?.content || []).filter(c => c.type === 'text').map(c => c.text))[0] || '';
 
 let status = 'ok';
-if (result.subtype === 'error_max_budget_usd') status = 'capped';
+if (base.timed_out) status = 'timeout';
+else if (result.subtype === 'error_max_budget_usd') status = 'capped';
 else if (!result.type || result.is_error) status = 'error';
 else if (/\?\s*$/.test(lastText.trim())) status = 'asked';
 

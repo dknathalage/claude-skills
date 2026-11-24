@@ -1,0 +1,5 @@
+# Paths the improver may change. Everything else is denied (seed skills, bench harness, judge, fixtures, hooks, this file).
+#   edit  <glob>   may add, change or delete
+#   add   <glob>   may only add new files (new regression cases), never change or delete existing ones
+edit skills/team-*/**
+add bench/regress/**

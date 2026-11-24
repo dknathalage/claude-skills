@@ -46,6 +46,8 @@ done
 [ -n "$EXP" ] && [ -n "$ARM" ] && [ -n "$FIXTURE" ] && [ -n "$REP" ] || { echo "need --exp --arm --fixture --rep" >&2; exit 2; }
 [ -n "$PLUGIN" ] || { [[ "$ARM" == superpowers* ]] && PLUGIN=superpowers || PLUGIN=claude-skills; }
 [ "$PLUGIN" = superpowers ] && PLUGIN_DIR="$SUPERPOWERS_DIR" || PLUGIN_DIR="$ROOT"
+# compare.sh points a run at an exported snapshot of the skills instead of the live repo.
+[ -n "${BENCH_PLUGIN_DIR:-}" ] && PLUGIN_DIR="$BENCH_PLUGIN_DIR"
 [ -n "$PROMPT" ] || PROMPT="$ROOT/bench/prompts/driver-$PLUGIN.md"
 
 FIX="$FIXTURES/$FIXTURE"

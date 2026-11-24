@@ -27,6 +27,7 @@ Update with `/plugin marketplace update claude-skills`. The small `marketplace.j
 | `code-review` | You are reviewing work outside a build, or acting on review feedback. |
 | `worktrees` | Work needs isolating in a git worktree. |
 | `finish-branch` | Tests pass and the branch needs merging, a PR, keeping or discarding. |
+| `improver` | A `team-*` skill needs improving from feedback. It edits only `skills/team-*/`, runs `bench/compare.sh`, and keeps the change only if the score holds. |
 | `writing-skills` | You are adding or changing a skill in this plugin. |
 
 All `SKILL.md` files together come to about 6,800 words, against about 22,000 for superpowers.
@@ -59,6 +60,10 @@ Results on F-medium (8 tasks), median of 3 runs each:
 | superpowers | 695 s | $3.88 | 20/20 | 9 |
 
 Run one session with `bench/run.sh`, or the E1 set with `bench/e1.sh`. `npm test` runs the harness and workflow tests.
+
+## Checking that a change helped
+
+`bench/compare.sh <base> <head> --fixtures <dir>` scores two states of the skills on the same fixtures. Each side is a git ref or `WORKTREE` (uncommitted edits), so it works straight on `main` with no CI. Scores cache by the content hash of the skills, only fixtures a changed skill can affect run, and it stops early once the answer is clear or the budget is spent. Exit codes: 0 better or no worse, 1 worse, 2 inconclusive, 3 cost up. `bench/guard.sh` checks that an improver change stays inside `bench/improver-allow`.
 
 ## Adding or changing a skill
 

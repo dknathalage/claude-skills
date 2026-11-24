@@ -1,6 +1,6 @@
 {
   "name": "claude-skills",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Spec, plan and a parallel Haiku-swarm build, plus TDD, debugging, verification, review and branch skills. Replaces superpowers.",
   "author": {
     "name": "dknathalage"

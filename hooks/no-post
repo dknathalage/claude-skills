@@ -1,0 +1,4 @@
+#!/bin/bash
+# PreToolUse gate for no-post mode. Builtins only, so ordinary sessions pay nothing and need no node on PATH.
+[ "${CLAUDE_SKILLS_NO_POST:-}" = 1 ] || exit 0
+exec node "${CLAUDE_PLUGIN_ROOT:-${BASH_SOURCE[0]%/*}/..}/hooks/no-post.mjs"

@@ -27,6 +27,9 @@ Update with `/plugin marketplace update claude-skills`. The small `marketplace.j
 | `code-review` | You are reviewing work outside a build, or acting on review feedback. |
 | `worktrees` | Work needs isolating in a git worktree. |
 | `finish-branch` | Tests pass and the branch needs merging, a PR, keeping or discarding. |
+| `relay` | You are asked to review a PR or draft a Jira or Slack answer. Claude drafts and logs it; you post. |
+| `baseline` | Build the team's `team-review` skill from past PR reviews and prove it beats no skills. |
+| `improver` | A `team-*` skill needs improving from feedback. It edits only `skills/team-*/`, runs `bench/compare.sh`, and keeps the change only if the score holds. |
 | `writing-skills` | You are adding or changing a skill in this plugin. |
 
 All `SKILL.md` files together come to about 6,800 words, against about 22,000 for superpowers.
@@ -59,6 +62,30 @@ Results on F-medium (8 tasks), median of 3 runs each:
 | superpowers | 695 s | $3.88 | 20/20 | 9 |
 
 Run one session with `bench/run.sh`, or the E1 set with `bench/e1.sh`. `npm test` runs the harness and workflow tests.
+
+## Checking that a change helped
+
+`bench/compare.sh <base> <head> --fixtures <dir>` scores two states of the skills on the same fixtures. Each side is a git ref or `WORKTREE` (uncommitted edits), so it works straight on `main` with no CI. Scores cache by the content hash of the skills, only fixtures a changed skill can affect run, and it stops early once the answer is clear or the budget is spent. Exit codes: 0 better or no worse, 1 worse, 2 inconclusive, 3 cost up. `bench/guard.sh` checks that an improver change stays inside `bench/improver-allow`.
+
+## Team skills (self-improving)
+
+A read-only loop that learns your team's review conventions. Claude never posts to GitHub, Jira or Slack: it drafts, you post.
+
+```
+mine PRs ──▶ fixtures (train | holdout) ──▶ baseline skill (train only) ──▶ proof on holdout
+   relay: draft ▶ you post ▶ log edits and reactions ──▶ improver ──▶ compare.sh ──▶ keep or revert
+```
+
+| Step | Command |
+|---|---|
+| Mine merged PRs (GitHub GET only) | `node team/mine.mjs --repo owner/name --since 2026-01-01` |
+| Build fixtures, newest PRs held out | `node team/build-fixtures.mjs [--holdout-repo owner/name]` |
+| Check the judge against your labels | `node team/calibrate-judge.mjs <labels dir>` |
+| Check a skill quotes no held-out text | `node team/leak-check.mjs skills/team-review --holdout $TEAM_DATA/fixtures/holdout` |
+| Prove a change helped | `bench/compare.sh HEAD~1 HEAD --fixtures $TEAM_DATA/fixtures/holdout --runner bench/run-review.sh --metric recall` |
+| Log a draft, what you posted, the reaction | `node team/relay.mjs draft|posted|outcome` |
+
+Data lives in `$TEAM_DATA` (default `~/.cache/claude-skills-team`), never in this repo. To block writes at the tool level, start team sessions with `CLAUDE_SKILLS_NO_POST=1` (a plugin hook refuses `gh` writes, `git push` and Slack, Jira or GitHub write tools), and give the tokens read-only scopes. Run reviews with the same model you use day to day (`REVIEW_MODEL`), or the scores will not transfer.
 
 ## Adding or changing a skill
 

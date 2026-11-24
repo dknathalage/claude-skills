@@ -3,6 +3,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test 'bench/test/*.test.mjs' 'team/test/*.test.mjs' && bash bench/test/run.test.sh && bash bench/test/compare.test.sh"
+    "test": "node --test 'bench/test/*.test.mjs' 'team/test/*.test.mjs' && bash bench/test/run.test.sh && bash bench/test/compare.test.sh && bash bench/test/review.test.sh"
   }
 }

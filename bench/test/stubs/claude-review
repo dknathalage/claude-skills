@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Stub claude for the review runner. Reviewer: writes draft.md covering the first N checklist items, N = "level: N" in the
+# loaded plugin's team-review skill (test-only side channel: $STUB_CHECKLIST). Judge (has --json-schema): matches "covers kX".
+ARGS="$*"
+if [[ " $ARGS " == *" --json-schema "* ]]; then
+  IDS=$(echo "$ARGS" | grep -oE '^\[k[0-9]+\]|\[k[0-9]+\] ' | tr -d '[] ' | sort -u)
+  DRAFT_IDS=$(echo "$ARGS" | sed -n '/<draft>/,/<\/draft>/p' | grep -oE 'covers k[0-9]+' | sed 's/covers //')
+  M=""; N=0
+  for id in $IDS; do
+    n=$(echo "$DRAFT_IDS" | grep -nx "$id" | head -1 | cut -d: -f1)
+    if [ -n "$n" ]; then M="$M{\"item\":\"$id\",\"draft\":$n},"; else M="$M{\"item\":\"$id\",\"draft\":null},"; fi
+  done
+  COUNT=$(echo "$DRAFT_IDS" | grep -c .)
+  echo "{\"type\":\"result\",\"is_error\":false,\"total_cost_usd\":0.002,\"structured_output\":{\"matches\":[${M%,}],\"draft_count\":$COUNT,\"extras\":[]}}"
+  exit 0
+fi
+# Reviewer
+PD=""; while [ $# -gt 0 ]; do [ "$1" = "--plugin-dir" ] && PD=$2; shift; done
+ls "$PWD" > "${STUB_LS_LOG:-/dev/null}"
+LEVEL=$(sed -n 's/^level: //p' "$PD/skills/team-review/SKILL.md" 2>/dev/null); LEVEL=${LEVEL:-0}
+i=0; : > draft.md
+for id in $(node -e 'for (const i of JSON.parse(require("fs").readFileSync(process.env.STUB_CHECKLIST,"utf8")).items) console.log(i.id)'); do
+  i=$((i + 1)); [ "$i" -gt "$LEVEL" ] && break
+  echo "$i. a.go:1 covers $id" >> draft.md
+done
+[ -s draft.md ] || rm -f draft.md
+echo '{"type":"system","subtype":"init","session_id":"s1","model":"claude-opus-5-5"}'
+echo '{"type":"result","subtype":"success","is_error":false,"total_cost_usd":0.5,"duration_ms":10,"session_id":"s1"}'

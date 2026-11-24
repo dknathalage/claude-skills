@@ -19,6 +19,9 @@ description: Use at the start of every session. Lists the claude-skills skills, 
 | Work that needs an isolated branch checkout | `claude-skills:worktrees` |
 | Implementation is done and tests pass; time to merge, open a PR or keep the branch | `claude-skills:finish-branch` |
 | Creating or editing a skill in this plugin | `claude-skills:writing-skills` |
+| Review a teammate's PR, or draft a Jira or Slack answer for the person to post | `claude-skills:relay` |
+| Build the team baseline skills from past PR reviews | `claude-skills:baseline` |
+| Improve a `team-*` skill from feedback, or prove a change to one helped | `claude-skills:improver` |
 
 ## The usual flow
 

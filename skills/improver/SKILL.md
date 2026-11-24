@@ -15,7 +15,7 @@ Change a generated `team-*` skill, prove it helped, leave the push to the person
 
 ## Steps
 
-1. Find the one pattern in the feedback since the last improvement. If there is none, stop.
+1. Read `node team/relay.mjs feedback --since-last` (edited, rejected and dropped drafts) and any new review comments from `node team/mine.mjs --since <date>`. Find the one pattern they share. If there is none, stop.
 2. Make the smallest edit to one `team-*` skill: a principle and its reason, not a rule list.
 3. `bash bench/guard.sh HEAD WORKTREE`. Fix or abort on any violation.
 4. Compare. Commit mode (default): commit locally, then `bash bench/compare.sh HEAD~1 HEAD --fixtures <dir> --budget-total <cap>`. Worktree mode: leave it uncommitted and run `… HEAD WORKTREE …`. Cap: the person's figure, else $5.
@@ -30,4 +30,5 @@ Change a generated `team-*` skill, prove it helped, leave the push to the person
 | 3 | COST_UP | Do not keep. Report the ratio. |
 
 6. Add the triggering case to `bench/regress/` as a new fixture. Cite the report (`bench/results/compare/*.md`) in the commit message.
-7. Report three lines: verdict, comparison cost, what changed.
+7. After a kept change, `node team/relay.mjs mark-improved`.
+8. Report three lines: verdict, comparison cost, what changed.

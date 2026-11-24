@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // PreToolUse hook: when CLAUDE_SKILLS_NO_POST=1, refuse anything that writes to GitHub, Jira or Slack (and git push).
 // Opt-in, so personal sessions are unaffected. Set the variable in the shell that launches team sessions.
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const GH_WRITE = /\bgh\s+(pr|issue|release|repo|label|workflow|run|gist)\s+(comment|review|edit|close|reopen|merge|create|ready|lock|unlock|delete|transfer|rename|fork|sync|rerun|cancel|disable|enable)\b/;
@@ -34,7 +34,7 @@ export function denies(toolName, input = {}) {
   return null;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url) && process.env.CLAUDE_SKILLS_NO_POST === '1') {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url) && process.env.CLAUDE_SKILLS_NO_POST === '1') {
   let ev = {};
   try { ev = JSON.parse(readFileSync(0, 'utf8')); } catch { process.exit(0); }
   const why = denies(ev.tool_name, ev.tool_input);

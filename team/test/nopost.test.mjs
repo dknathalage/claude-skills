@@ -44,3 +44,14 @@ test('team_tools_contain_no_write_calls', () => {
   const walk = d => readdirSync(d).flatMap(f => { const p = join(d, f); return statSync(p).isDirectory() ? (f === 'test' ? [] : walk(p)) : [p]; });
   for (const f of walk(join(ROOT, 'team')).filter(f => f.endsWith('.mjs'))) assert.doesNotMatch(readFileSync(f, 'utf8'), bad, f);
 });
+
+test('no_post_hook_is_a_no_op_without_node_when_not_opted_in', () => {
+  const h = JSON.parse(readFileSync(join(ROOT, 'hooks/hooks.json'), 'utf8'));
+  const cmd = h.hooks.PreToolUse[0].hooks[0].command;
+  assert.match(cmd, /^"\$\{CLAUDE_PLUGIN_ROOT\}\/hooks\/no-post"$/);
+  const ev = JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'git push' } });
+  const off = spawnSync(join(ROOT, 'hooks/no-post'), { input: ev, env: { PATH: '' }, encoding: 'utf8' });
+  assert.equal(off.status, 0);
+  const on = spawnSync(join(ROOT, 'hooks/no-post'), { input: ev, env: { PATH: process.env.PATH, CLAUDE_SKILLS_NO_POST: '1' }, encoding: 'utf8' });
+  assert.equal(on.status, 2);
+});

@@ -3,7 +3,7 @@
 //   node team/build-fixtures.mjs [--mined DIR] [--out DIR] [--holdout-frac 0.2] [--holdout-repo owner/name] [--max-diff-kb 300] [--skills team-review]
 // Split is by time: the newest PRs are holdout. --holdout-repo also puts every PR of a repo in holdout.
 // Layout: <out>/{train,holdout}/<owner>__<repo>__<n>/{meta.json, input/{pr.md,diff.patch}, reference/{checklist.json,comments.json}}
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, statSync, rmSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, mkdirSync, statSync, rmSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataDir } from './mine.mjs';
@@ -68,7 +68,7 @@ export async function buildFixtures({ mined, out, frac, holdoutRepo, maxDiffKb =
 }
 
 const arg = (a, k, d) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : d; };
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const a = process.argv.slice(2);
   const root = dataDir();
   const r = await buildFixtures({

@@ -2,7 +2,7 @@
 // Fail if generated skills quote held-out material. Baseline skills may learn from train PRs only.
 //   node team/leak-check.mjs <skills-dir-or-file …> --holdout <fixtures/holdout dir> [--words 8]
 // Looks for any run of N words (default 8) from a holdout reviewer comment, checklist item or diff line in the skill text.
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -35,7 +35,7 @@ export function holdoutTexts(dir) {
   return out;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const a = process.argv.slice(2);
   const hi = a.indexOf('--holdout'), wi = a.indexOf('--words');
   const holdout = hi >= 0 ? a[hi + 1] : null;

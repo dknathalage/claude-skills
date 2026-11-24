@@ -2,7 +2,7 @@
 // Summarise bench result rows.
 //   node bench/lib/summarize.mjs <exp>   → writes bench/results/<exp>.md, prints it
 //   node bench/lib/summarize.mjs --spend → prints total cost_usd over every raw row
-import { readdirSync, readFileSync, writeFileSync, existsSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, existsSync, statSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -62,7 +62,7 @@ function readRows(dir) {
   return out;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const results = join(dirname(fileURLToPath(import.meta.url)), '..', 'results');
   const arg = process.argv[2];
   if (arg === '--spend') {

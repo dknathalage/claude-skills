@@ -3,7 +3,7 @@
 //   node team/mine.mjs --repo owner/name [--repo …] [--since 2026-01-01] [--limit 200] [--prs 12,15] [--out DIR] [--refresh]
 // Writes <out>/<owner>__<repo>/<number>/{pr.json, comments.json, diff.patch}. Default out: $TEAM_DATA/mined
 // ($TEAM_DATA defaults to ~/.cache/claude-skills-team). Mined data is company data: it stays outside this repo.
-import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { ghJson, ghPages, ghDiff } from './lib/gh-read.mjs';
@@ -53,7 +53,7 @@ export async function listMerged(repo, { since, limit = 200, prs } = {}) {
 }
 
 const arg = (a, k) => a.flatMap((x, i) => (x === k ? [a[i + 1]] : []));
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const a = process.argv.slice(2);
   const repos = arg(a, '--repo');
   if (!repos.length) { console.error('usage: mine.mjs --repo owner/name [--since DATE] [--limit N] [--prs 1,2] [--out DIR] [--refresh]'); process.exit(64); }

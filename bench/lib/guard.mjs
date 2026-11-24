@@ -2,7 +2,7 @@
 // Check an improver change against bench/improver-allow.
 //   git diff --name-status --no-renames <base> <head> | node bench/lib/guard.mjs bench/improver-allow
 // Reads "<status>\t<path>" lines on stdin. Prints each violation and exits 1 if there are any.
-import { readFileSync } from 'node:fs';
+import { readFileSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const globToRe = g => new RegExp('^' + g.split('**').map(p => p.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]')).join('.*') + '$');
@@ -29,7 +29,7 @@ export function violations(changes, rules) {
   return bad;
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const rules = parseAllow(readFileSync(process.argv[2], 'utf8'));
   const input = readFileSync(0, 'utf8').split('\n').filter(Boolean).map(l => {
     const [status, ...rest] = l.split('\t');

@@ -3,7 +3,7 @@
 //   node bench/lib/skillhash.mjs <plugin-dir>  → {"plugin": "<sha256>", "skills": {"<name>": "<sha256>"}}
 // Hashes skills/<name>/** per skill and hooks/**. Ignores plugin.json (its version bumps every change),
 // docs, bench and git metadata, so amends, rebases and message-only commits keep their cache.
-import { readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, existsSync, realpathSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -43,6 +43,6 @@ export function skillHashes(pluginDir) {
   return { plugin: top.digest('hex'), skills };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   console.log(JSON.stringify(skillHashes(process.argv[2])));
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Build a result row for one review run.
 //   node bench/lib/review-row.mjs <transcript.jsonl> <judge.json> <checklist.json> <draft-exists 0|1> <base-row-json>
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export function scoreMatches(checklist, judged) {
@@ -33,7 +33,7 @@ export function reviewRow({ events, judge, checklist, draftExists, base }) {
   return { ...base, status, cost_usd: result.total_cost_usd ?? null, judge_cost_usd: judge?.total_cost_usd ?? null, ...scored, session_id: result.session_id || null };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [tp, jp, cp, de, baseJson] = process.argv.slice(2);
   const events = existsSync(tp) ? readFileSync(tp, 'utf8').split('\n').filter(Boolean).flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } }) : [];
   const judge = existsSync(jp) ? (() => { try { return JSON.parse(readFileSync(jp, 'utf8')); } catch { return null; } })() : null;

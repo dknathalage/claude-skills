@@ -11,7 +11,7 @@
 //   node bench/lib/compare.mjs report PAIRS.jsonl --base <label> --head <label> [--tol ..] [--min ..] [--spent N]
 //        → prints a markdown report
 // PAIRS.jsonl: one {"fixture","regression","base":{"metric","cost"},"head":{"metric","cost"}} per line.
-import { readFileSync, readdirSync, existsSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, statSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -140,7 +140,7 @@ export function report(pairs, d, { base, head, spent = 0, cachedPairs = 0 }) {
 const arg = (a, k, d) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : d; };
 const readPairs = p => readFileSync(p, 'utf8').split('\n').filter(Boolean).map(l => JSON.parse(l));
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, ...a] = process.argv.slice(2);
   if (cmd === 'select') {
     const base = JSON.parse(readFileSync(arg(a, '--base'), 'utf8'));

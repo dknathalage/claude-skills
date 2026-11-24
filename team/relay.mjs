@@ -6,7 +6,7 @@
 //   node team/relay.mjs outcome --id ID --result accepted|rejected|ignored|discussed [--note "…"]
 //   node team/relay.mjs feedback [--since-last | --since ISO]    → JSON of entries worth learning from
 //   node team/relay.mjs mark-improved                            → move the "last improvement" mark to now
-import { readFileSync, appendFileSync, writeFileSync, existsSync, mkdirSync, cpSync } from 'node:fs';
+import { readFileSync, appendFileSync, writeFileSync, existsSync, mkdirSync, cpSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -52,7 +52,7 @@ export function signals(joined, { editThreshold = 0.1 } = {}) {
 }
 
 const arg = (a, k) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : undefined; };
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [cmd, ...a] = process.argv.slice(2);
   const now = new Date().toISOString();
   const fail = m => { console.error(m); process.exit(64); };

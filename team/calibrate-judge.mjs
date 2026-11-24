@@ -3,7 +3,7 @@
 //   node team/calibrate-judge.mjs <labels-dir> [--min-accuracy 0.85]
 // Each label file is JSON: {"checklist":[{"id":"k1","check":"…"}], "draft":"1. a.go:10 …", "matched":["k1","k3"]}
 // "matched" is what YOU say the draft covers. The judge runs on each draft; this prints how often it agrees with you.
-import { readdirSync, readFileSync, writeFileSync, mkdtempSync } from 'node:fs';
+import { readdirSync, readFileSync, writeFileSync, mkdtempSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
@@ -26,7 +26,7 @@ export function summarise(rows) {
   return { ...s, n, accuracy: n ? (s.tp + s.tn) / n : null, judge_precision: s.tp + s.fp ? s.tp / (s.tp + s.fp) : null, judge_recall: s.tp + s.fn ? s.tp / (s.tp + s.fn) : null };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [dir] = process.argv.slice(2);
   const minAcc = Number(process.argv[process.argv.indexOf('--min-accuracy') + 1] || 0.85);
   if (!dir) { console.error('usage: calibrate-judge.mjs <labels-dir>'); process.exit(64); }

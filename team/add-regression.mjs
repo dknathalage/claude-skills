@@ -2,7 +2,7 @@
 // Turn a draft the person corrected into a regression fixture, so a later change cannot quietly lose that lesson.
 //   node team/add-regression.mjs --draft ID --check "what a reviewer should flag" [--check …] [--skills team-review] [--out bench/regress]
 // Needs the draft to have been logged with --input. Add-only: refuses to touch an existing fixture.
-import { cpSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, writeFileSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { dataDir } from './mine.mjs';
@@ -10,7 +10,7 @@ import { dataDir } from './mine.mjs';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const all = (a, k) => a.flatMap((x, i) => (x === k ? [a[i + 1]] : []));
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const a = process.argv.slice(2);
   const draft = all(a, '--draft')[0], checks = all(a, '--check');
   const out = all(a, '--out')[0] || join(ROOT, 'bench/regress');

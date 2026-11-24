@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Stub claude for team tests. Behaviour by the prompt's first words; logs calls to $STUB_CLAUDE_LOG.
+[ -n "${STUB_CLAUDE_LOG:-}" ] && echo "$*" >> "$STUB_CLAUDE_LOG"
+if [[ "$*" == *"turn human code-review comments"* ]]; then
+  # One check per comment id found in the prompt.
+  IDS=$(echo "$*" | grep -oE '\[(i|r)[0-9]+\]' | tr -d '[]' | sort -u)
+  ITEMS=""; for id in $IDS; do ITEMS="$ITEMS{\"check\":\"check for $id\",\"source\":[\"$id\"]},"; done
+  echo "{\"type\":\"result\",\"is_error\":false,\"total_cost_usd\":0.01,\"structured_output\":{\"items\":[${ITEMS%,}]}}"
+  exit 0
+fi
+echo '{"type":"result","is_error":true,"result":"unexpected prompt"}'; exit 1

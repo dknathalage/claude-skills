@@ -29,6 +29,6 @@ Change a generated `team-*` skill, prove it helped, leave the push to the person
 | 2 | INCONCLUSIVE | Do not keep. Say what is missing. |
 | 3 | COST_UP | Do not keep. Report the ratio. |
 
-6. Add the triggering case to `bench/regress/` as a new fixture. Cite the report (`bench/results/compare/*.md`) in the commit message.
+6. Add the triggering case: `node team/add-regression.mjs --draft <id> --check "<what should have been flagged>"`. Cite the report (`bench/results/compare/*.md`) in the commit message.
 7. After a kept change, `node team/relay.mjs mark-improved`.
 8. Report three lines: verdict, comparison cost, what changed.

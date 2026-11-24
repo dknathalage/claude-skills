@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 // Relay log: what Claude drafted, what Don actually posted, and how people reacted. Local JSONL, never leaves the machine.
-//   node team/relay.mjs draft --target owner/repo#12 --file draft.md [--kind pr-review|jira|slack]   → prints the draft id
+//   node team/relay.mjs draft --target owner/repo#12 --file draft.md [--kind pr-review|jira|slack] [--input DIR]   → prints the draft id
+//        --input DIR snapshots the material the draft was written from (pr.md, diff.patch), so a regression case can be built later
 //   node team/relay.mjs posted --id ID (--same | --file posted.txt)
 //   node team/relay.mjs outcome --id ID --result accepted|rejected|ignored|discussed [--note "…"]
 //   node team/relay.mjs feedback [--since-last | --since ISO]    → JSON of entries worth learning from
 //   node team/relay.mjs mark-improved                            → move the "last improvement" mark to now
-import { readFileSync, appendFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
+import { readFileSync, appendFileSync, writeFileSync, existsSync, mkdirSync, cpSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -60,6 +61,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     if (!target || !file) fail('usage: relay.mjs draft --target owner/repo#12 --file draft.md [--kind K]');
     const id = `d-${now.slice(0, 10)}-${randomBytes(3).toString('hex')}`;
     append({ type: 'draft', id, target, kind: arg(a, '--kind') || 'pr-review', text: readFileSync(file, 'utf8'), skills_hash: skillHashes(ROOT).plugin.slice(0, 12), at: now });
+    if (arg(a, '--input')) cpSync(arg(a, '--input'), join(dataDir(), 'relay-inputs', id), { recursive: true });
     console.log(id);
   } else if (cmd === 'posted') {
     const id = arg(a, '--id'); const d = join_(read()).find(x => x.id === id);

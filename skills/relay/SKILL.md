@@ -11,7 +11,7 @@ You draft. The person posts. Never comment, reply, approve, merge or send to Git
 
 1. **Get the material, read-only.** A PR: `node team/fetch-pr.mjs <owner/repo#N> --out <tmp dir>`. A Jira or Slack question: the person pastes it.
 2. **Draft.** For a PR, review `pr.md` and `diff.patch` with `claude-skills:team-review` if it exists, else `claude-skills:code-review`. Number each comment: file and line, the problem, why it matters. Write it to a file.
-3. **Log it.** `node team/relay.mjs draft --target <owner/repo#N> --file <draft> [--kind jira|slack]` prints a draft id.
+3. **Log it.** `node team/relay.mjs draft --target <owner/repo#N> --file <draft> --input <the fetch dir> [--kind jira|slack]` prints a draft id.
 4. **Hand over.** Show the draft and the id, then stop.
 5. **Record what happened**, when the person tells you:
    - Posted unchanged: `node team/relay.mjs posted --id <id> --same`.

@@ -4,7 +4,8 @@
 #   bench/compare.sh <base> <head> --fixtures DIR [options]
 #
 # <base>, <head>   a git ref (HEAD, HEAD~1, a sha) or WORKTREE (the working tree, uncommitted edits included).
-# --fixtures DIR   fixture folders to run (each may carry meta.json: {"regression":true,"skills":["team-review"]}).
+# --fixtures DIR   fixture folders to run; repeatable. Each fixture may carry meta.json: {"regression":true,"skills":["team-review"]}.
+#                  bench/regress/ is added automatically when it holds fixtures (the improver's regression cases).
 # --metric M       auto (recall, else hidden pass rate) | recall | hidden_pass_rate | review_score
 # --tol 0.02       a drop smaller than this counts as noise
 # --min 5 --max 30 fewest pairs before a decision, most pairs to run
@@ -28,11 +29,11 @@ RESULTS="${BENCH_RESULTS:-$ROOT/bench/results}"
 
 [ $# -ge 2 ] || { sed -n '2,24p' "$0" >&2; exit 64; }
 BASE_REF=$1 HEAD_REF=$2; shift 2
-FIXTURES= METRIC=auto TOL=0.02 MIN=5 MAX=30 REPS=1 BUDGET_RUN=2 BUDGET_TOTAL=10 COST_RATIO=1.25
+FIXTURE_DIRS=() METRIC=auto TOL=0.02 MIN=5 MAX=30 REPS=1 BUDGET_RUN=2 BUDGET_TOTAL=10 COST_RATIO=1.25
 RUNNER="$ROOT/bench/run.sh" RUNNER_ARGS= SEED=1 FORCE=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --fixtures) FIXTURES=$2; shift 2 ;;
+    --fixtures) FIXTURE_DIRS+=("$2"); shift 2 ;;
     --metric) METRIC=$2; shift 2 ;;
     --tol) TOL=$2; shift 2 ;;
     --min) MIN=$2; shift 2 ;;
@@ -48,8 +49,11 @@ while [ $# -gt 0 ]; do
     *) echo "unknown arg $1" >&2; exit 64 ;;
   esac
 done
-[ -d "$FIXTURES" ] || { echo "--fixtures DIR is required and must exist" >&2; exit 64; }
-FIXTURES="$(cd "$FIXTURES" && pwd)"
+[ ${#FIXTURE_DIRS[@]} -gt 0 ] || { echo "--fixtures DIR is required" >&2; exit 64; }
+ABS=()
+for d in "${FIXTURE_DIRS[@]}"; do [ -d "$d" ] || { echo "no such fixtures dir: $d" >&2; exit 64; }; ABS+=("$(cd "$d" && pwd)"); done
+if [ -d "$ROOT/bench/regress" ] && [ -n "$(find "$ROOT/bench/regress" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | head -1)" ]; then ABS+=("$ROOT/bench/regress"); fi
+SEL=(); for d in "${ABS[@]}"; do SEL+=(--fixtures "$d"); done
 mkdir -p "$CACHE" "$EXPORTS"
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
 
@@ -75,7 +79,7 @@ BASE_HASH=$(export_side "$BASE_REF" base) || exit 64
 HEAD_HASH=$(export_side "$HEAD_REF" head) || exit 64
 B8=${BASE_HASH:0:8} H8=${HEAD_HASH:0:8}
 
-node "$ROOT/bench/lib/compare.mjs" select --fixtures "$FIXTURES" --base "$TMP/hash-base.json" --head "$TMP/hash-head.json" --seed "$SEED" > "$TMP/order.tsv" 2> "$TMP/select.err"
+node "$ROOT/bench/lib/compare.mjs" select "${SEL[@]}" --base "$TMP/hash-base.json" --head "$TMP/hash-head.json" --seed "$SEED" > "$TMP/order.tsv" 2> "$TMP/select.err"
 cat "$TMP/select.err" >&2
 if [ ! -s "$TMP/order.tsv" ]; then
   echo "No skill content changed between $BASE_REF ($B8) and $HEAD_REF ($H8), or no fixture can be affected. Nothing to run."
@@ -84,13 +88,13 @@ fi
 
 # run_side <label> <hash> <fixture> <rep> → prints the row path (cached or fresh); adds new spend to $TMP/spend
 run_side() {
-  local label=$1 hash=$2 fixture=$3 rep=$4
+  local label=$1 hash=$2 fixture=$3 rep=$4 fdir=$5
   local cached="$CACHE/$hash/${fixture}__${rep}.json"
   if [ "$FORCE" = 0 ] && [ -f "$cached" ]; then echo "$cached"; return; fi
   local out="$TMP/run-$label-$fixture-$rep"
   mkdir -p "$out"
   # shellcheck disable=SC2086
-  BENCH_PLUGIN_DIR="$EXPORTS/$hash" BENCH_RESULTS="$out" BENCH_FIXTURES="$FIXTURES" \
+  BENCH_PLUGIN_DIR="$EXPORTS/$hash" BENCH_RESULTS="$out" BENCH_FIXTURES="$fdir" \
     "$RUNNER" --exp compare --arm "$label-${hash:0:8}" --fixture "$fixture" --rep "$rep" --budget "$BUDGET_RUN" $RUNNER_ARGS >/dev/null 2>&1
   local row="$out/raw/compare/$label-${hash:0:8}__${fixture}__${rep}.json"
   if [ -f "$row" ]; then
@@ -108,14 +112,14 @@ run_side() {
 echo 0 > "$TMP/spend"
 : > "$TMP/pairs.jsonl"
 CACHED=0 N=0 DECISION='{}'
-while IFS=$'\t' read -r fixture regression; do
+while IFS=$'\t' read -r fixture regression fdir; do
   for rep in $(seq 1 "$REPS"); do
     if [ "$(awk -v s="$(cat "$TMP/spend")" -v b="$BUDGET_TOTAL" 'BEGIN{print (s>=b)?1:0}')" = 1 ]; then
       echo "Budget reached (\$$BUDGET_TOTAL). Stopping." >&2; break 2
     fi
     [ -f "$CACHE/$BASE_HASH/${fixture}__${rep}.json" ] && [ "$FORCE" = 0 ] && CACHED=$((CACHED + 1))
-    base_row=$(run_side base "$BASE_HASH" "$fixture" "$rep")
-    head_row=$(run_side head "$HEAD_HASH" "$fixture" "$rep")
+    base_row=$(run_side base "$BASE_HASH" "$fixture" "$rep" "$fdir")
+    head_row=$(run_side head "$HEAD_HASH" "$fixture" "$rep" "$fdir")
     node "$ROOT/bench/lib/compare.mjs" pair --fixture "$fixture" --regression "$regression" \
       --base-row "$base_row" --head-row "$head_row" --metric "$METRIC" >> "$TMP/pairs.jsonl"
     N=$((N + 1))

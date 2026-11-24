@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Paired comparison of two skill versions on the same fixtures.
-//   node bench/lib/compare.mjs select --fixtures DIR --base H.json --head H.json [--seed N]
-//        → prints "<fixture>\t<0|1 regression>" lines, regression cases first, then a seeded shuffle,
+//   node bench/lib/compare.mjs select --fixtures DIR [--fixtures DIR2 …] --base H.json --head H.json [--seed N]
+//        → prints "<fixture>\t<0|1 regression>\t<its fixtures dir>" lines, regression cases first, then a seeded shuffle,
 //          limited to fixtures the changed skills can affect. Prints nothing if no skill changed.
 //   node bench/lib/compare.mjs pair --fixture F --regression 0|1 --base-row R.json --head-row R.json [--metric auto]
 //        → prints one pairs.jsonl line (a run that is missing or not status "ok" gives metric null)
@@ -49,15 +49,17 @@ export function changedSkills(base, head) {
   return changed.sort();
 }
 
-export function selectFixtures(fixturesDir, changed, seed = 1) {
+export function selectFixtures(fixturesDirs, changed, seed = 1) {
   if (!changed.length) return [];
-  const all = readdirSync(fixturesDir).filter(n => statSync(join(fixturesDir, n)).isDirectory()).sort();
   const picked = [];
-  for (const name of all) {
-    const mp = join(fixturesDir, name, 'meta.json');
-    const meta = existsSync(mp) ? JSON.parse(readFileSync(mp, 'utf8')) : {};
-    const affected = !Array.isArray(meta.skills) || meta.skills.some(s => changed.includes(s)) || changed.includes('*hooks*');
-    if (affected) picked.push({ name, regression: !!meta.regression });
+  for (const dir of [].concat(fixturesDirs)) {
+    if (!existsSync(dir)) continue;
+    for (const name of readdirSync(dir).filter(n => statSync(join(dir, n)).isDirectory()).sort()) {
+      const mp = join(dir, name, 'meta.json');
+      const meta = existsSync(mp) ? JSON.parse(readFileSync(mp, 'utf8')) : {};
+      const affected = !Array.isArray(meta.skills) || meta.skills.some(s => changed.includes(s)) || changed.includes('*hooks*');
+      if (affected) picked.push({ name, dir, regression: !!meta.regression });
+    }
   }
   const rnd = mulberry32(seed);
   const rest = picked.filter(p => !p.regression);
@@ -146,8 +148,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     const changed = changedSkills(base, head);
     if (!changed.length) process.exit(0);
     process.stderr.write(`changed: ${changed.join(', ')}\n`);
-    for (const p of selectFixtures(arg(a, '--fixtures'), changed, Number(arg(a, '--seed', 1)))) {
-      console.log(`${p.name}\t${p.regression ? 1 : 0}`);
+    const dirs = a.flatMap((x, i) => (x === '--fixtures' ? [a[i + 1]] : []));
+    for (const p of selectFixtures(dirs, changed, Number(arg(a, '--seed', 1)))) {
+      console.log(`${p.name}\t${p.regression ? 1 : 0}\t${p.dir}`);
     }
   } else if (cmd === 'pair') {
     const load = p => { try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; } };
